@@ -1,0 +1,302 @@
+#!/usr/bin/env python3
+import re
+import argparse
+
+def parse_timestamp(timestamp):
+    """
+    Convert a VTT timestamp (HH:MM:SS.mmm) into seconds (float).
+    Example: "00:22:10.660" => 1330.66 seconds.
+    Can also parse seconds --> seconds if not in HH:MM:SS format.
+    """
+    parts = timestamp.split(':')
+    if len(parts) == 1:
+        # assume it's just seconds
+        return float(parts[0])
+    
+    if len(parts) == 3:
+        # assume it's HH:MM:SS format
+        hours = int(parts[0])
+        minutes = int(parts[1])
+        seconds = float(parts[2])
+        return hours * 3600 + minutes * 60 + seconds
+    else:
+        raise ValueError(f"Invalid timestamp format: {timestamp}")
+
+def parse_vtt_file(vtt_filename):
+    """
+    Parse a VTT file and extract cues as a list of tuples:
+    (start_time_in_seconds, text)
+    This function ignores cue numbers and only uses the start time.
+    """
+    cues = []
+    with open(vtt_filename, 'r', encoding='utf-8') as f:
+        lines = f.read().splitlines()
+
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        # Skip header lines or empty lines
+        if line == "" or line.startswith("WEBVTT"):
+            i += 1
+            continue
+
+        # If the line is just a number, it's likely a cue identifier; skip it.
+        if re.match(r'^\d+$', line):
+            i += 1
+            continue
+
+        # Look for the timestamp line (contains '-->')
+        if '-->' in line:
+            # Example line: "00:22:10.660 --> 00:22:17.119"
+            parts = line.split('-->')
+            start_timestamp = parts[0].strip()
+            try:
+                start_time = parse_timestamp(start_timestamp)
+            except ValueError as e:
+                print(f"Warning: {e}. Skipping cue.")
+                i += 1
+                continue
+
+            # The cue text is on the following lines until an empty line is encountered.
+            i += 1
+            text_lines = []
+            while i < len(lines) and lines[i].strip() != "":
+                text_lines.append(lines[i].strip())
+                i += 1
+            cue_text = " ".join(text_lines)
+            cues.append((start_time, cue_text))
+        else:
+            i += 1
+
+    return cues
+
+def format_time(seconds):
+    """
+    Format seconds (float) into HH:MM:SS (if hours > 0) or MM:SS string.
+    """
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    if hours > 0:
+        return f"{hours:02}:{minutes:02}:{secs:02}"
+    else:
+        return f"{minutes:02}:{secs:02}"
+
+def generate_html(cues, video_url):
+    """
+    Generate a full HTML page as a string. The page uses a flex container with
+    a video element at the top and a scrollable transcript area below.
+    Each transcript cue is clickable to seek to the start time.
+    """
+    transcript_lines = ""
+    for start_time, text in cues:
+        formatted_time = format_time(start_time)
+        transcript_lines += f'        <p>\n'
+        transcript_lines += f'          <span class="timestamp" data-time="{start_time}">[{formatted_time}]</span>\n'
+        transcript_lines += f'          {text}\n'
+        transcript_lines += f'        </p>\n'
+
+    html_content = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zoom Call Transcript with Flex Layout</title>
+  <style>
+    /* Ensure the page uses full viewport height and removes default margins */
+    html, body {{
+      height: 100%;
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }}
+    /* The main flex container fills the viewport */
+    .container {{
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }}
+    /* Video container (its height is adjustable via JavaScript) */
+    #video-container {{
+      padding: 10px;
+      height: 60vh;
+      overflow: hidden;
+    }}
+    #video-container video {{
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }}
+
+    /* Separator bar: draggable by the user */
+    #separator {{
+        position: relative;
+        height: 5px;
+        background: #ccc;
+        cursor: ns-resize; /* use ns-resize for vertical dragging */
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }}
+    
+    /* Create a larger invisible hit area for iOS iPad */
+    #separator::before {{
+        content: "";
+        position: absolute;
+        top: -10px;
+        bottom: -10px;
+        left: 0;
+        right: 0;
+    }}
+
+    /* Transcript container takes remaining space and scrolls if needed */
+    #transcript-container {{
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      border-top: 1px solid #ccc;
+    }}
+    .transcript p {{
+      margin-bottom: 15px;
+    }}
+    .timestamp {{
+      position: relative;
+      color: blue;
+      text-decoration: underline;
+      cursor: pointer;
+    }}
+    /* make expanded hit area for timestamp clicks and touches */
+    .timestamp::before {{
+      content: "";
+      position: absolute;
+      top: -15px;
+      left: -15px;
+      right: -15px;
+      bottom: -15px;
+    }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Video container -->
+    <div id="video-container">
+      <video id="zoomVideo" controls>
+        <source src="{video_url}" type="video/mp4" />
+        Your browser does not support the video tag.
+      </video>
+    </div>
+
+    <!-- Draggable separator -->
+    <div id="separator"></div>
+
+    <!-- Transcript container -->
+    <div id="transcript-container">
+      <div class="transcript">
+{transcript_lines}
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript to enable clickable transcript timestamps -->
+  <script>
+
+    // Draggable separator functionality
+    const separator = document.getElementById('separator');
+    const videoContainer = document.getElementById('video-container');
+    const container = document.querySelector('.container');
+
+    let isDragging = false;
+
+    // Unified handler for starting a drag.
+    function startDrag(e) {{
+      isDragging = true;
+      // If pointer events are supported, capture the pointer.
+      if (e.pointerId) {{
+        separator.setPointerCapture(e.pointerId);
+      }}
+      e.preventDefault();
+    }}
+
+    // Unified handler for moving during a drag.
+    function onDrag(e) {{
+      if (!isDragging) return;
+      let clientY;
+      if (e.clientY !== undefined) {{
+        clientY = e.clientY;
+      }} else if (e.touches && e.touches.length > 0) {{
+        clientY = e.touches[0].clientY;
+      }} else {{
+        return;
+      }}
+      let containerTop = container.getBoundingClientRect().top;
+      let newHeight = clientY - containerTop;
+      const minHeight = 100;
+      const maxHeight = window.innerHeight - 100;
+      newHeight = Math.max(minHeight, Math.min(maxHeight, newHeight));
+      videoContainer.style.height = newHeight + 'px';
+      e.preventDefault();
+    }}
+
+    // Unified handler for ending a drag.
+    function endDrag(e) {{
+      isDragging = false;
+      if (e.pointerId) {{
+        separator.releasePointerCapture(e.pointerId);
+      }}
+      e.preventDefault();
+    }}
+
+    // Pointer events (for most desktop and modern browsers)
+    separator.addEventListener('pointerdown', startDrag);
+    window.addEventListener('pointermove', onDrag);
+    window.addEventListener('pointerup', endDrag);
+
+    // Touch events as a fallback (make sure to set passive: false)
+    separator.addEventListener('touchstart', startDrag, {{ passive: false }});
+    window.addEventListener('touchmove', onDrag, {{ passive: false }});
+    window.addEventListener('touchend', endDrag, {{ passive: false }});
+
+        
+    // for timestamp clicks and touches
+    function handleTimestampEvent(e) {{
+        // Prevent any default touch behavior
+        e.preventDefault();
+        const time = parseFloat(this.getAttribute('data-time'));
+        const video = document.getElementById('zoomVideo');
+        video.currentTime = time;
+        video.play();
+    }}
+
+    document.querySelectorAll('.timestamp').forEach(function(element) {{
+        element.addEventListener('click', handleTimestampEvent);
+        // Adding touchstart ensures immediate response on touch devices.
+        element.addEventListener('touchstart', handleTimestampEvent, {{ passive: false }});
+    }});
+
+  </script>
+</body>
+</html>
+'''
+    return html_content
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate an HTML transcript page from a VTT file.")
+    parser.add_argument("vtt_file", help="Path to the VTT file")
+    parser.add_argument("output_file", help="Output HTML file path")
+    parser.add_argument("--video_url", 
+                        default="https://your-bucket.mp4",
+                        help="URL of the video file")
+    args = parser.parse_args()
+
+    cues = parse_vtt_file(args.vtt_file)
+    if not cues:
+        print("No cues found in the VTT file. Exiting.")
+        return
+
+    html = generate_html(cues, args.video_url)
+
+    with open(args.output_file, 'w', encoding='utf-8') as out:
+        out.write(html)
+    print(f"HTML file generated: {args.output_file}")
+
+if __name__ == "__main__":
+    main()

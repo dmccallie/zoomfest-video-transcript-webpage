@@ -1,4 +1,21 @@
 #!/usr/bin/env python3
+
+# parses the VTT file and generates an HTML page with a video player
+# and a scrollable transcript area below it. Each transcript cue is clickable
+# to seek to the corresponding time in the video.
+
+# you should have uploaded your video to a public S3 bucket or similar
+# so it can be accessed via a URL.
+
+# then take the output HTML file and open it in a web browser.
+# then copy to an S3 bucket or similar for sharing.
+
+# example usage:
+# python create_static_webpage.py --video_url \
+#   https://mccallie-family-stories.s3.us-east-1.amazonaws.com/zoomvideos/Zoomfest-JBM-SJM-KPM-18Jan2026.mp4 \
+#   "/mnt/d/Dropbox/McCallieFamilyStories/Zoomfest-18Jan2026/GMT20260118-190759_Recording.transcript.vtt" \
+#   test.html
+
 import re
 import argparse
 
@@ -58,13 +75,20 @@ def parse_vtt_file(vtt_filename):
                 continue
 
             # The cue text is on the following lines until an empty line is encountered.
+            # strip the speaker off the first line if present (e.g., "Speaker 1: Hello world")
             i += 1
             text_lines = []
+            speaker = ""
             while i < len(lines) and lines[i].strip() != "":
-                text_lines.append(lines[i].strip())
+                speaker_split = lines[i].strip().split(":", 1)
+                if len(speaker_split) == 2:
+                    speaker = speaker_split[0].strip()
+                    text_lines.append(speaker_split[1].strip())
+                else: 
+                  text_lines.append(lines[i].strip())
                 i += 1
             cue_text = " ".join(text_lines)
-            cues.append((start_time, cue_text))
+            cues.append((speaker, start_time, cue_text))
         else:
             i += 1
 
@@ -89,12 +113,32 @@ def generate_html(cues, video_url):
     Each transcript cue is clickable to seek to the start time.
     """
     transcript_lines = ""
-    for start_time, text in cues:
+
+    # group speakers into paragraphs, with header for each speaker and starting timestamp
+    # then add each cue as a paragraph with clickable timestamp
+    # break to new speaker when transcript indicates a new speaker
+
+    last_speaker = None
+
+    for speaker, start_time, text in cues:
         formatted_time = format_time(start_time)
+        # do we have a new speaker?
+        if speaker != last_speaker:
+            if last_speaker is not None:
+                # close previous speaker's paragraph
+                transcript_lines += f'      </div>\n'
+            # start new speaker section
+            transcript_lines += f'      <div class="speaker-section">\n'
+            transcript_lines += f'        <span class=speakername data-time="{start_time}">{speaker}</span> <span class="timestamp" data-time="{start_time}">[ {formatted_time} ]</span>\n'
+            last_speaker = speaker
+          
         transcript_lines += f'        <p>\n'
-        transcript_lines += f'          <span class="timestamp" data-time="{start_time}">[{formatted_time}]</span>\n'
-        transcript_lines += f'          {text}\n'
+        transcript_lines += f'          <span class=speakertext data-time="{start_time}">{text}</span>\n'
         transcript_lines += f'        </p>\n'
+
+    if last_speaker is not None:
+        # close the last speaker's section
+        transcript_lines += f'      </div>\n'
 
     html_content = f'''<!DOCTYPE html>
 <html lang="en">
@@ -108,6 +152,8 @@ def generate_html(cues, video_url):
       height: 100%;
       margin: 0;
       font-family: Arial, sans-serif;
+      background-color: #01182c;
+      color: #ded9d9;
     }}
     /* The main flex container fills the viewport */
     .container {{
@@ -152,15 +198,21 @@ def generate_html(cues, video_url):
     #transcript-container {{
       flex: 1;
       overflow-y: auto;
-      padding: 20px;
+      padding: 30px;
       border-top: 1px solid #ccc;
+      display: flex;
+      justify-content: center;
+    }}
+    .transcript {{
+      max-width: 1000px;
+      width: 100%;
     }}
     .transcript p {{
       margin-bottom: 15px;
     }}
     .timestamp {{
       position: relative;
-      color: blue;
+      color: white;
       text-decoration: underline;
       cursor: pointer;
     }}
@@ -173,6 +225,32 @@ def generate_html(cues, video_url):
       right: -15px;
       bottom: -15px;
     }}
+    .speakername {{
+      font-weight: bold;
+      font-size: 1.2em;
+      margin-right: 10px;
+      cursor: pointer;
+    }}
+    /* inset speaker text to distinguish from speaker name */
+    .speakertext {{
+      font-size: 1em;
+      cursor: pointer;
+    }}
+    .speaker-section {{
+      margin-bottom: 25px;
+      padding: 15px;
+      border-radius: 10px;
+    }}
+    .speaker-section:nth-child(odd) {{
+      background-color: rgba(255, 255, 255, 0.03);
+    }}
+    .speaker-section:nth-child(even) {{
+      background-color: rgba(255, 255, 255, 0.06);
+    }}
+    .speaker-section p {{
+      margin-left: 20px;
+    }}
+
   </style>
 </head>
 <body>
@@ -266,7 +344,7 @@ def generate_html(cues, video_url):
         video.play();
     }}
 
-    document.querySelectorAll('.timestamp').forEach(function(element) {{
+    document.querySelectorAll('.timestamp, .speakername, .speakertext').forEach(function(element) {{
         element.addEventListener('click', handleTimestampEvent);
         // Adding touchstart ensures immediate response on touch devices.
         element.addEventListener('touchstart', handleTimestampEvent, {{ passive: false }});

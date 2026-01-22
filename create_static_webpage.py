@@ -39,6 +39,19 @@ def parse_timestamp(timestamp):
     else:
         raise ValueError(f"Invalid timestamp format: {timestamp}")
 
+def fix_spelling(text):
+    """ fix a few family name transcription errors """
+    corrections = [
+      ("McCauley", "McCallie"),
+      ("Catherine", "Katharine"),
+      ("Chicago coal", "Chicago cold"),
+      ("HIROX", "High Rocks")
+    ]
+    for wrong, right in corrections:
+        text = text.replace(wrong, right)
+
+    return text
+
 def parse_vtt_file(vtt_filename):
     """
     Parse a VTT file and extract cues as a list of tuples:
@@ -83,9 +96,12 @@ def parse_vtt_file(vtt_filename):
                 speaker_split = lines[i].strip().split(":", 1)
                 if len(speaker_split) == 2:
                     speaker = speaker_split[0].strip()
-                    text_lines.append(speaker_split[1].strip())
+                    fixed_text = fix_spelling(speaker_split[1].strip())
+                    text_lines.append(fixed_text)
                 else: 
-                  text_lines.append(lines[i].strip())
+                  raw_text = lines[i].strip()
+                  fixed_text = fix_spelling(raw_text)
+                  text_lines.append(fixed_text)
                 i += 1
             cue_text = " ".join(text_lines)
             cues.append((speaker, start_time, cue_text))
@@ -151,9 +167,10 @@ def generate_html(cues, video_url):
     html, body {{
       height: 100%;
       margin: 0;
-      font-family: Arial, sans-serif;
+      font-family: Georgia, serif;
       background-color: #01182c;
       color: #ded9d9;
+      line-height: 1.4;
     }}
     /* The main flex container fills the viewport */
     .container {{
@@ -164,7 +181,7 @@ def generate_html(cues, video_url):
     /* Video container (its height is adjustable via JavaScript) */
     #video-container {{
       padding: 10px;
-      height: 60vh;
+      height: 50vh;
       overflow: hidden;
     }}
     #video-container video {{
@@ -194,12 +211,23 @@ def generate_html(cues, video_url):
         right: 0;
     }}
 
+    /* Search box styling */
+    #search-container {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
+      background-color: rgba(255, 255, 255, 0.05);
+      border-top: 1px solid #ccc;
+      border-bottom: 1px solid #ccc;
+      flex-wrap: wrap;
+    }}
+
     /* Transcript container takes remaining space and scrolls if needed */
     #transcript-container {{
       flex: 1;
       overflow-y: auto;
       padding: 30px;
-      border-top: 1px solid #ccc;
       display: flex;
       justify-content: center;
     }}
@@ -213,7 +241,6 @@ def generate_html(cues, video_url):
     .timestamp {{
       position: relative;
       color: white;
-      text-decoration: underline;
       cursor: pointer;
     }}
     /* make expanded hit area for timestamp clicks and touches */
@@ -227,13 +254,13 @@ def generate_html(cues, video_url):
     }}
     .speakername {{
       font-weight: bold;
-      font-size: 1.2em;
+      font-size: 1.15em;
       margin-right: 10px;
       cursor: pointer;
     }}
     /* inset speaker text to distinguish from speaker name */
     .speakertext {{
-      font-size: 1em;
+      font-size: 1.1em;
       cursor: pointer;
     }}
     .speaker-section {{
@@ -248,7 +275,55 @@ def generate_html(cues, video_url):
       background-color: rgba(255, 255, 255, 0.06);
     }}
     .speaker-section p {{
+      margin-top: 5px;
+      margin-bottom: 10px;
       margin-left: 20px;
+    }}
+
+    #search-input {{
+      flex: 1;
+      min-width: 200px;
+      padding: 8px 12px;
+      border: 1px solid #555;
+      border-radius: 4px;
+      background-color: #002244;
+      color: white;
+      font-size: 16px;
+    }}
+    #search-input:focus {{
+      outline: none;
+      border-color: #4a90e2;
+    }}
+    .search-button {{
+      padding: 8px 16px;
+      background-color: #4a90e2;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }}
+    .search-button:hover {{
+      background-color: #357abd;
+    }}
+    .search-button:disabled {{
+      background-color: #555;
+      cursor: not-allowed;
+    }}
+    #search-info {{
+      color: #aaa;
+      font-size: 14px;
+      min-width: 120px;
+    }}
+    /* Highlight styles */
+    .search-highlight {{
+      background-color: yellow;
+      color: black;
+      padding: 2px 0;
+    }}
+    .search-highlight.current {{
+      background-color: orange;
+      color: black;
     }}
 
   </style>
@@ -266,6 +341,14 @@ def generate_html(cues, video_url):
     <!-- Draggable separator -->
     <div id="separator"></div>
 
+    <!-- Search box -->
+    <div id="search-container">
+      <input type="text" id="search-input" placeholder="Search transcript..." />
+      <button class="search-button" id="prev-button" disabled>Previous</button>
+      <button class="search-button" id="next-button" disabled>Next</button>
+      <span id="search-info"></span>
+    </div>
+
     <!-- Transcript container -->
     <div id="transcript-container">
       <div class="transcript">
@@ -276,6 +359,126 @@ def generate_html(cues, video_url):
 
   <!-- JavaScript to enable clickable transcript timestamps -->
   <script>
+
+    // Search functionality
+    let searchMatches = [];
+    let currentMatchIndex = -1;
+    const searchInput = document.getElementById('search-input');
+    const prevButton = document.getElementById('prev-button');
+    const nextButton = document.getElementById('next-button');
+    const searchInfo = document.getElementById('search-info');
+    const transcriptDiv = document.querySelector('.transcript');
+
+    function clearHighlights() {{
+      const highlights = transcriptDiv.querySelectorAll('.search-highlight');
+      highlights.forEach(highlight => {{
+        const parent = highlight.parentNode;
+        parent.replaceChild(document.createTextNode(highlight.textContent), highlight);
+        parent.normalize();
+      }});
+      searchMatches = [];
+      currentMatchIndex = -1;
+    }}
+
+    function highlightMatches(searchTerm) {{
+      if (!searchTerm || searchTerm.length < 2) {{
+        clearHighlights();
+        searchInfo.textContent = '';
+        prevButton.disabled = true;
+        nextButton.disabled = true;
+        return;
+      }}
+
+      clearHighlights();
+      const speakerTextElements = transcriptDiv.querySelectorAll('.speakertext');
+      const searchRegex = new RegExp(searchTerm.replace(/[.*+?^${{}}()|[\\\\]\\\\\\\\]/g, '\\\\$&'), 'gi');
+
+      speakerTextElements.forEach(element => {{
+        const originalText = element.textContent;
+        const matches = [...originalText.matchAll(searchRegex)];
+        
+        if (matches.length > 0) {{
+          let lastIndex = 0;
+          const fragment = document.createDocumentFragment();
+          
+          matches.forEach(match => {{
+            // Add text before match
+            if (match.index > lastIndex) {{
+              fragment.appendChild(document.createTextNode(originalText.substring(lastIndex, match.index)));
+            }}
+            // Add highlighted match
+            const mark = document.createElement('span');
+            mark.className = 'search-highlight';
+            mark.textContent = match[0];
+            fragment.appendChild(mark);
+            searchMatches.push(mark);
+            lastIndex = match.index + match[0].length;
+          }});
+          
+          // Add remaining text
+          if (lastIndex < originalText.length) {{
+            fragment.appendChild(document.createTextNode(originalText.substring(lastIndex)));
+          }}
+          
+          element.textContent = '';
+          element.appendChild(fragment);
+        }}
+      }});
+
+      if (searchMatches.length > 0) {{
+        currentMatchIndex = 0;
+        updateCurrentMatch();
+        prevButton.disabled = false;
+        nextButton.disabled = false;
+      }} else {{
+        searchInfo.textContent = 'No matches';
+        prevButton.disabled = true;
+        nextButton.disabled = true;
+      }}
+    }}
+
+    function updateCurrentMatch() {{
+      searchMatches.forEach((match, index) => {{
+        if (index === currentMatchIndex) {{
+          match.classList.add('current');
+          match.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+        }} else {{
+          match.classList.remove('current');
+        }}
+      }});
+      searchInfo.textContent = `${{currentMatchIndex + 1}} of ${{searchMatches.length}}`;
+    }}
+
+    searchInput.addEventListener('input', (e) => {{
+      highlightMatches(e.target.value);
+    }});
+
+    searchInput.addEventListener('keydown', (e) => {{
+      if (e.key === 'Enter') {{
+        if (e.shiftKey) {{
+          prevMatch();
+        }} else {{
+          nextMatch();
+        }}
+      }}
+    }});
+
+    function nextMatch() {{
+      if (searchMatches.length > 0) {{
+        currentMatchIndex = (currentMatchIndex + 1) % searchMatches.length;
+        updateCurrentMatch();
+      }}
+    }}
+
+    function prevMatch() {{
+      if (searchMatches.length > 0) {{
+        currentMatchIndex = (currentMatchIndex - 1 + searchMatches.length) % searchMatches.length;
+        updateCurrentMatch();
+      }}
+    }}
+
+    nextButton.addEventListener('click', nextMatch);
+    prevButton.addEventListener('click', prevMatch);
 
     // Draggable separator functionality
     const separator = document.getElementById('separator');

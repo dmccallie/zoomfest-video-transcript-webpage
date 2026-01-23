@@ -122,6 +122,14 @@
       margin-left: 20px;
     }
 
+    /* Active transcript segment (synced with video) */
+    .speakertext.active {
+      background-color: rgba(74, 144, 226, 0.3);
+      border-left: 3px solid #4a90e2;
+      padding-left: 8px;
+      margin-left: -11px;
+    }
+
     #search-input {
       flex: 1;
       min-width: 200px;
@@ -151,6 +159,22 @@
     .search-button:disabled {
       background-color: #555;
       cursor: not-allowed;
+    }
+    #autoscroll-toggle {
+      padding: 8px 16px;
+      background-color: #2d5;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    #autoscroll-toggle:hover {
+      background-color: #2a4;
+    }
+    #autoscroll-toggle.disabled {
+      background-color: #666;
     }
     #search-info {
       color: #aaa;
@@ -216,6 +240,7 @@
       <button class="search-button" id="prev-button" disabled>Previous</button>
       <button class="search-button" id="next-button" disabled>Next</button>
       <span id="search-info"></span>
+      <button id="autoscroll-toggle" class="enabled">Auto-Scroll: ON</button>
     </div>
 
     <!-- Transcript container -->
@@ -3256,6 +3281,84 @@
 
     nextButton.addEventListener('click', nextMatch);
     prevButton.addEventListener('click', prevMatch);
+
+    // Auto-scroll functionality
+    let autoScrollEnabled = true;
+    let currentActiveElement = null;
+    let userIsScrolling = false;
+    let scrollTimeout = null;
+    const autoscrollToggle = document.getElementById('autoscroll-toggle');
+    const transcriptContainer = document.getElementById('transcript-container');
+
+    // Toggle auto-scroll on/off
+    autoscrollToggle.addEventListener('click', () => {
+      autoScrollEnabled = !autoScrollEnabled;
+      if (autoScrollEnabled) {
+        autoscrollToggle.textContent = 'Auto-Scroll: ON';
+        autoscrollToggle.classList.remove('disabled');
+        autoscrollToggle.classList.add('enabled');
+      } else {
+        autoscrollToggle.textContent = 'Auto-Scroll: OFF';
+        autoscrollToggle.classList.remove('enabled');
+        autoscrollToggle.classList.add('disabled');
+      }
+    });
+
+    // Detect when user manually scrolls
+    transcriptContainer.addEventListener('scroll', () => {
+      if (autoScrollEnabled) {
+        userIsScrolling = true;
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+          userIsScrolling = false;
+        }, 2000); // Re-enable auto-scroll after 2 seconds of no scrolling
+      }
+    });
+
+    // Sync transcript with video playback
+    video.addEventListener('timeupdate', () => {
+      if (!autoScrollEnabled || userIsScrolling) return;
+      
+      const currentTime = video.currentTime;
+      const allTextElements = transcriptContainer.querySelectorAll('.speakertext');
+      
+      // Find the current active segment
+      let activeElement = null;
+      for (let i = allTextElements.length - 1; i >= 0; i--) {
+        const elementTime = parseFloat(allTextElements[i].getAttribute('data-time'));
+        if (currentTime >= elementTime) {
+          activeElement = allTextElements[i];
+          break;
+        }
+      }
+      
+      // Update highlighting if active element changed
+      if (activeElement && activeElement !== currentActiveElement) {
+        if (currentActiveElement) {
+          currentActiveElement.classList.remove('active');
+        }
+        activeElement.classList.add('active');
+        currentActiveElement = activeElement;
+        
+        // Scroll to keep active element visible
+        activeElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }
+    });
+
+    // Clear active highlight when video is paused or seeking
+    video.addEventListener('pause', () => {
+      if (currentActiveElement) {
+        currentActiveElement.classList.remove('active');
+        currentActiveElement = null;
+      }
+    });
+
+    video.addEventListener('seeking', () => {
+      userIsScrolling = false; // Allow auto-scroll after manual seek
+    });
 
     // Draggable separator functionality
     const separator = document.getElementById('separator');

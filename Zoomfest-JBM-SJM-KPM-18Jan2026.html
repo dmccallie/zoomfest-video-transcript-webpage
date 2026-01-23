@@ -1,0 +1,3378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zoom Call Transcript with Flex Layout</title>
+  <style>
+    /* Ensure the page uses full viewport height and removes default margins */
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Georgia, serif;
+      background-color: #01182c;
+      color: #ded9d9;
+      line-height: 1.4;
+    }
+    /* The main flex container fills the viewport */
+    .container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    /* Video container (its height is adjustable via JavaScript) */
+    #video-container {
+      padding: 10px;
+      height: 50vh;
+      overflow: hidden;
+    }
+    #video-container video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* Separator bar: draggable by the user */
+    #separator {
+        position: relative;
+        height: 5px;
+        background: #ccc;
+        cursor: ns-resize; /* use ns-resize for vertical dragging */
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+    
+    /* Create a larger invisible hit area for iOS iPad */
+    #separator::before {
+        content: "";
+        position: absolute;
+        top: -10px;
+        bottom: -10px;
+        left: 0;
+        right: 0;
+    }
+
+    /* Search box styling */
+    #search-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
+      background-color: rgba(255, 255, 255, 0.05);
+      border-top: 1px solid #ccc;
+      border-bottom: 1px solid #ccc;
+      flex-wrap: wrap;
+    }
+
+    /* Transcript container takes remaining space and scrolls if needed */
+    #transcript-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 30px;
+      display: flex;
+      justify-content: center;
+    }
+    .transcript {
+      max-width: 1000px;
+      width: 100%;
+    }
+    .transcript p {
+      margin-bottom: 15px;
+    }
+    .timestamp {
+      position: relative;
+      color: white;
+      cursor: pointer;
+    }
+    /* make expanded hit area for timestamp clicks and touches */
+    .timestamp::before {
+      content: "";
+      position: absolute;
+      top: -15px;
+      left: -15px;
+      right: -15px;
+      bottom: -15px;
+    }
+    .speakername {
+      font-weight: bold;
+      font-size: 1.15em;
+      margin-right: 10px;
+      cursor: pointer;
+    }
+    /* inset speaker text to distinguish from speaker name */
+    .speakertext {
+      font-size: 1.1em;
+      cursor: pointer;
+    }
+    .speaker-section {
+      margin-bottom: 25px;
+      padding: 15px;
+      border-radius: 10px;
+    }
+    .speaker-section:nth-child(odd) {
+      background-color: rgba(255, 255, 255, 0.03);
+    }
+    .speaker-section:nth-child(even) {
+      background-color: rgba(255, 255, 255, 0.06);
+    }
+    .speaker-section p {
+      margin-top: 5px;
+      margin-bottom: 10px;
+      margin-left: 20px;
+    }
+
+    #search-input {
+      flex: 1;
+      min-width: 200px;
+      padding: 8px 12px;
+      border: 1px solid #555;
+      border-radius: 4px;
+      background-color: #002244;
+      color: white;
+      font-size: 16px;
+    }
+    #search-input:focus {
+      outline: none;
+      border-color: #4a90e2;
+    }
+    .search-button {
+      padding: 8px 16px;
+      background-color: #4a90e2;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .search-button:hover {
+      background-color: #357abd;
+    }
+    .search-button:disabled {
+      background-color: #555;
+      cursor: not-allowed;
+    }
+    #search-info {
+      color: #aaa;
+      font-size: 14px;
+      min-width: 120px;
+    }
+    /* Highlight styles */
+    .search-highlight {
+      background-color: yellow;
+      color: black;
+      padding: 2px 0;
+    }
+    .search-highlight.current {
+      background-color: orange;
+      color: black;
+    }
+    
+    /* Video error message */
+    #video-error {
+      display: none;
+      background-color: rgba(255, 100, 100, 0.2);
+      border: 2px solid #ff6666;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px;
+      color: #ffcccc;
+    }
+    #video-error h3 {
+      margin-top: 0;
+      color: #ff9999;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Video container -->
+    <div id="video-container">
+      <video id="zoomVideo" controls playsinline preload="metadata">
+        <source src="https://mccallie-family-stories.s3.us-east-1.amazonaws.com/zoomvideos/Zoomfest-JBM-SJM-KPM-18Jan2026.mp4" type="video/mp4; codecs=hvc1" />
+        <source src="https://mccallie-family-stories.s3.us-east-1.amazonaws.com/zoomvideos/Zoomfest-JBM-SJM-KPM-18Jan2026.mp4" type="video/mp4" />
+        <source src="https://mccallie-family-stories.s3.us-east-1.amazonaws.com/zoomvideos/Zoomfest-JBM-SJM-KPM-18Jan2026.mp4" />
+        Your browser does not support the video tag or this video format.
+      </video>
+      <div id="video-error">
+        <h3>⚠️ Video Loading Error</h3>
+        <p><strong>The video failed to load or play.</strong></p>
+        <p>On iOS/Safari, this is often caused by H.265/HEVC encoding, which has limited browser support.</p>
+        <p><strong>Solution:</strong> Re-encode the video to H.264 format using:</p>
+        <code style="display: block; background: #000; padding: 10px; margin: 10px 0; border-radius: 4px;">
+          ffmpeg -i input.mp4 -c:v libx264 -preset slow -crf 23 -c:a aac output.mp4
+        </code>
+        <p style="font-size: 0.9em; margin-top: 15px;">H.264 is universally supported across all browsers and devices.</p>
+      </div>
+    </div>
+
+    <!-- Draggable separator -->
+    <div id="separator"></div>
+
+    <!-- Search box -->
+    <div id="search-container">
+      <input type="text" id="search-input" placeholder="Search transcript..." />
+      <button class="search-button" id="prev-button" disabled>Previous</button>
+      <button class="search-button" id="next-button" disabled>Next</button>
+      <span id="search-info"></span>
+    </div>
+
+    <!-- Transcript container -->
+    <div id="transcript-container">
+      <div class="transcript">
+      <div class="speaker-section">
+        <span class=speakername data-time="1.96">Hastings Hart</span> <span class="timestamp" data-time="1.96">[ 00:01 ]</span>
+        <p>
+          <span class=speakertext data-time="1.96">One thing about names, so Sumner, on the fly, changed some of your names to be a little more descriptive, keeping in mind that, you know, your name as it's appearing on your screen next to your face is how it's going to show up in the transcript. So it's helpful if those are, you know, very descriptive.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="22.0">for a long-term change, I was looking… Zoom… Zoom doesn't make a lot of things easy. It wasn't… I couldn't quickly find out how to change it permanently. You may want to search the web after the call, see if I can find some instructions and email them to everybody.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="38.67">But, going forward, it's actually just good Zoom habits in general to have, you know, your very descriptive name there on your account.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="48.32">And, I think those are all the reminders. So Ellen… I mean, Eleanor?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="57.41">You're, europe?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="63.19">Eleanor</span> <span class="timestamp" data-time="63.19">[ 01:03 ]</span>
+        <p>
+          <span class=speakertext data-time="63.19">Okay, well, first, I want to say Mel is here. He's, he's listening in, he's very close, and I saw Franklin and Teresa there, too. I think everybody's been welcomed.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="73.67">And so thank you, thank you all for coming.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="77.08">We have a great, new team, I want to say new, 4 or 5 of us have been working for quite a while, and then we added Sumner and Jack, and, just, it feels real, real good to see this, Zoom Fest growing, and we are doing quite a lot of new things.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="96.41">So I want to be sure that's a little plug for February's program, because we're going to really introduce you to all the things that we're doing, and get you,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="108.72">literate in them, be able to do them with us, because we think we have some, great, great possibilities. So, that's coming in February.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="117.72999999999999">And then in March, we're gonna do photos with, Nancy's gonna be leading that, but we've got quite a few ideas for, developing a whole photo program, so you'll hear more about that in February. Then in March, we'll have that as our program. And then I have one more to announce today,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="135.7">We're going to have an April program. We haven't set the date yet, we'll send that out later, but Paul Presley is going to do a program for us, and we're really looking forward to that. So, I just…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="147.89">say that to also let you know we may keep this thing going. It may not… it may not end quite as we had thought.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="157.02">spencer mccallie</span> <span class="timestamp" data-time="157.02">[ 02:37 ]</span>
+        <p>
+          <span class=speakertext data-time="157.02">So…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="159.18">Eleanor</span> <span class="timestamp" data-time="159.18">[ 02:39 ]</span>
+        <p>
+          <span class=speakertext data-time="159.18">With that, that's all I need to say to lead in to the… today's program.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="164.29">Jack, presented… Jack and Spencer together presented some of this at the campsite.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="173.61">But we didn't… those of us who were there didn't feel like we'd had enough. We either fell asleep, or we, we wanted more. It was… there was… it was a new… it was new material, and it was exciting to us. So, most of you,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="189.89">may have had a chance to hear it there, and if you didn't, that's okay. You'll get it full force, but if you did, you'll have a deeper… you'll probably have some questions already on your mind. Alright, with Jack… with that, Jack, I'll just turn it over to you.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="206.67000000000002">Jack McCallie</span> <span class="timestamp" data-time="206.67000000000002">[ 03:26 ]</span>
+        <p>
+          <span class=speakertext data-time="206.67000000000002">Thanks, Elnor. Let me make sure I've got my bearings here.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="218.12">When Eleanor asked me to,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="221.8">revisit what we talked about at High Rocks. I didn't want to do exactly the same thing. Those of you who sat through that, it was announced as being</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="233.61">new history from Spencer. And I did that with tongue-in-cheek, because I figured everybody would expect more stories from Spencer, when… when in actual, in reality, it was…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="247.24">new information from the original Spencer McCallie, letters that had not been read or shared with the family. I had come up with these, given them to Spencer, and he did a wonderful job of presenting them late one night.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="266.64">I think those that sat through it had lots of questions, and I didn't want to do the same thing over again. So, consider this sort of new history from Spencer.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="278.7">abridged and annotated, so I've cut down a lot to try to focus on several of the themes that I thought were interesting and</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="289.72">worth sharing. Some of you have not heard any of this, and all of this ultimately will be on the website, the original letters, the translations, that will be something that, in your</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="304.25">spare time, or whenever you want to, you can enjoy in the future. So I've… I've abridged it, I've tried to annotate it, bring out some other thoughts and ideas.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="313.13">the… story of these letters,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="321.09">They date from 1920 through… we have letters up to 1939. These were saved by… Katharine Pierce-McCallie.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="336.90999999999997">And ended up in my parents' attic for a generation. When they moved out of their house, ended up in our basement, and then in a storage unit. So, their treasures that had been tucked away, and,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="355.04">not enjoyed until now, and I think one plug I would put in, thanks to Nancy's encouragement, is for all those things you have in your attic that you're ready to throw away.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="366.79">Pay attention to those that might have some</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="369.1">Personal value and historic value to the next generation, because</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="374.63">I think this gives us all a way to revisit and rethink our heritage, and so it's… it is a treasure. It may be trash in your attic, but someday it may be treasure, so for future Zoom generations, save those things.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="396.38">These are…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="398.19">these letters, as I read, have studied them and stuff, they are just a snapshot in time. They are not…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="407.67">You have to accept them as that. They are not the movie.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="411.89">Of what was going on.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="414.4">We're limited by individual pictures or… Comments that don't…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="422.7">paint the whole narrative. I think it gives us a better understanding of their world, their lives, their personalities, their humor, their suffering, but it is not the whole story, it is not the movie of these people's lives. But it's all we've got, and it's a treasure, and I hope we can all enjoy it.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="441.96">Let me ask Hastings if you could pull up the…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="450.11">first slide to put us all on the same page, and I… sent Hastings some…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="464.14">I did this to help Especially the younger generation.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="469.56">Thanks to those who are here. An understanding of who we're talking about, and</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="480.26">where these people fit in.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="486.39">I'm looking at a different screen, so if I'm looking away, don't take it personally.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="493.3">third…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="495.2">column over Spencer Jarnigan McCallie, and below him, James Park McCallie. That's the generation, that we're talking about. Thank you, Carrie. This is your, your handiwork, her, genealogy.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="520.48">Spencer marries Alice Fletcher.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="523.23">Marshall McCallie</span> <span class="timestamp" data-time="523.23">[ 08:43 ]</span>
+        <p>
+          <span class=speakertext data-time="523.23">He was 13 years older than she.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="527.08">Jack McCallie</span> <span class="timestamp" data-time="527.08">[ 08:47 ]</span>
+        <p>
+          <span class=speakertext data-time="527.08">Marshall, I'm gonna ask you to… oh, there you go, never mind. So, Spencer… Spencer Johnny McCallie, they're right in the middle. First wife, Alice Fletcher.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="538.9">Dies in 1918.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="543.4">remarries Katharine Pierce, they have one child,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="552.01">I was gonna make the comment that the…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="555.92">wonderful picture that Douglas shared, the, AI picture, this, the…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="563.25">The rest of the back row is that column that is not fully represented here. Spencer John McCallie, Park McCallie, Doug McCallie, Thomas McCallie. So, if you think back of that funny AI video, I hope you enjoyed that Douglas shared.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="580.6">That's the generation that… that we're talking about. This… This picture, this, image.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="589.82">highlights the age of the children when this time period occurred. So, Carrie did this such that, when my father was born in 1921, his oldest sister, Mary Ware, is 14,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="604.06">Brother Spencer is 12, T-Hook is 9, Alice is 7, and Ellen is 5. So, those are pertinent to the conversations that</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="614.52">we move forward with. So that's just the family tree. At the time of these letters, Spencer is 45.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="622.38">his… future wife is 26.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="628.84">If we can go to slide 2, Hastings, the images we have of these folks are</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="636.01">things like this. This is the bust of Spencer McCallie as headmaster. This is in the chapel at Macaulay School. The next slide…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="650.36">an iconic one of, Katharine McCallie. That's Dr. James Fowle, who was the, preacher at First Presbyterian Church.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="660.4">grandmother or Mother Kay, in her,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="665.85">usual smiling visage. That's… those are the people we remember, but step back to slide…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="682.68">6 and 7.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="688.82">This is Spencer Macaulay as headmaster from the pennant, the Macaulay School Yearbook, in 1920. So, change your image to a handsome, older man, and the next picture is</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="706.75">Katharine Pierce, not sure if she's married at this time, but… so…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="712.23">You have to change your image from… those…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="717.41">ones we know to those that we didn't know, so it's kind of neat to see that…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="724.1">And put that in your mind.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="727.98">I started the story in High Rocks with the first letter from</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="732.24">1920, I'm gonna go back to a prequel. There are two prequels to this that were not shared.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="740.43">The first one, if you could pull it up, Hastings is slide 4 and 5.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="747.05">Eleanor did this years ago. I hope it will stay in the archives. This is the last letter from Alice Fletcher to her sister-in-law in China, written in October.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="758.53">1918, the letter that never… was finished by her. Next slide.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="768.77">Her husband, Spencer McCallie, ends the letter a month later.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="774.14">Announcing that she had died before the letter was finished.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="777.84">And… Couple of, couple of things.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="785.4">You can easily imagine how much I have lost.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="789.27">She was all in awe to me.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="795.71">19… November 28th, 1918.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="799.91">A side note to this.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="803.81">If you go back a page, Eleanor has changed the, the, the annotations.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="811.6">Gertrude was the child who was named here.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="815.94">and the Presley Boys, that was… that was… Alice changed her name from Gertrude to Alice.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="822.11">It's interesting, in this letter in 1918,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="826.3">Gertrude's mother refers to her as Gertrude.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="829.81">we never… I never see that in any of the subsequent letters. When Spencer McCallie is writing and talking about his children, she is always Alice. So, I don't know when…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="842.36">Alice Macaulay Presley changed her name from Gertrude.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="846.13">Paul Pressly</span> <span class="timestamp" data-time="846.13">[ 14:06 ]</span>
+        <p>
+          <span class=speakertext data-time="846.13">Could I say a word on that?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="848.49">Jack McCallie</span> <span class="timestamp" data-time="848.49">[ 14:08 ]</span>
+        <p>
+          <span class=speakertext data-time="848.49">I hope you will. I hope you will.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="850.25">Paul Pressly</span> <span class="timestamp" data-time="850.25">[ 14:10 ]</span>
+        <p>
+          <span class=speakertext data-time="850.25">A note of this. My mother told me that she hated the name Gertrude, because when she was a little girl in elementary school, bright school, she was called Gertie.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="862.18">Jack McCallie</span> <span class="timestamp" data-time="862.18">[ 14:22 ]</span>
+        <p>
+          <span class=speakertext data-time="862.18">Ew.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="862.7">Paul Pressly</span> <span class="timestamp" data-time="862.7">[ 14:22 ]</span>
+        <p>
+          <span class=speakertext data-time="862.7">And she thought that was a disgrace.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="865.09">And she lobbied hard to have that name changed, and she was so glad to be Alice.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="870.93">Jack McCallie</span> <span class="timestamp" data-time="870.93">[ 14:30 ]</span>
+        <p>
+          <span class=speakertext data-time="870.93">learner.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="873.01">Paul Pressly</span> <span class="timestamp" data-time="873.01">[ 14:33 ]</span>
+        <p>
+          <span class=speakertext data-time="873.01">She changed with no regret.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="875.53">Jack McCallie</span> <span class="timestamp" data-time="875.53">[ 14:35 ]</span>
+        <p>
+          <span class=speakertext data-time="875.53">It was just interesting to me that</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="877.7">her mother referred to her as that, but all letters subsequent to this, she is Alice. And I don't know if that was something that, Spencer</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="888.54">Used, or if she had demanded it by then that she changed. But anyway, it was just an interesting notation as the… as the letters came out.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="896.85">So, this was… this was Spencer McCallie's world.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="901.6">At the end of 1918.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="905.64">You can do away with the slides there for a second, Hastings.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="910.71">Those of us who heard the conversation and will hear it here again soon.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="915.15">There's another prequel letter, and this one is to Katharine Pierce.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="920.01">In September of 1919, Katharine Pierce.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="927.02">grew up in Pennsylvania, went to Moody Bible Institute in Chicago, was hired by Dr. Bachman at First Presbyterian Church, apparently under significant influence by Park McCallie, to come and work in Chattanooga.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="944.15">And in September of 1919, she has doubts about this, and this is a letter from a Frank Nelson, September 10th, 1919, to Katharine Pierce in Williamsport, Pennsylvania.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="957.53">Dear Ms. Katharine, Dr. Bachman tells me that you have written him indicating that you are thinking very seriously of not coming back to Chattanooga this year, and asking to be released from the arrangement between you and the church for this winter.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="971.04">You, of course, realize that we are under no circumstances insist on you coming back if it was not entirely according to your wishes, and I realize that the reasons that you give the doctor are very persuasive.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="982.7">We would ask you, however, not to minimize the value of the work that you did here. It may be that the results and the work you are now doing in Pennsylvania are more apparent than you found here. Nevertheless, we were most highly pleased, and the doctor is really dependent upon you.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="999.81">I, of course, do not know your home conditions and how much you are needed there, but I would say this, that we realize the salary we were formerly paying you has ceased to be what it is when you first came in purchasing power, and if you should come back, we would expect to bring it up to a proper amount.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1016.99">Personally, I regret very much not having you back.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1020.05">But whatever your decision is, I trust the year will be most pleasant and successful. Kindless regard… kindest regards Frank Nelson.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1028.23">Eleanor</span> <span class="timestamp" data-time="1028.23">[ 17:08 ]</span>
+        <p>
+          <span class=speakertext data-time="1028.23">So…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1029.68">Jack McCallie</span> <span class="timestamp" data-time="1029.68">[ 17:09 ]</span>
+        <p>
+          <span class=speakertext data-time="1029.68">We hear later of her…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1033.329">seemingly being tugged between Chattanooga and Williamsport, and even before we have any of the letters with her and</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1040.5">her future husband, we see that home was very important to her, and I think that's something that caught my attention as we delve into the letters.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1049.34">More.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1051.12">So that's kind of the background.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1057.1">the series that I'm gonna go through, I highlight a couple of different themes to tone it down in terms of time.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1066.83">There's the courtship, There is the… Didn't get that. Could you try again?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1076.75">Siri, be quiet. There is courtship.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1081.56">There's illness and struggle, and then there's just the relationship struggle that I highlight. I've cut out the civic conversation, the church conversation, I left out a lot of what we heard up at High Rocks, so if it sounds like there's just too much of</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1101.92">the same thing, that's my editing. So, with that in mind, let me move forward. We have a couple of different series of letters, and</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1114.81">The first group is from… February of 1920,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1120.65">And this is the courtship, and Katharine Pierce is working at First Presbyterian Church.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1126.76">It starts on February 10th, 1920. They are married May 26th of 1920. So these letters are…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1135.78">I think at some point during the latter part of these couple of letters, he has asked her to, wed, and they are married. So this is February, and they're married in May. Pretty quick, pretty quick time, if you, think about it.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1152.46">So with that, I'll take off and go from there. Please interrupt anytime you need to.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1158.74">My dear Katharine, today at noon I was called up by the police department and ordered to headquarters for tomorrow, 8.30am, for violation of auto regulations. I imagine that it is for driving without my rear light on.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1171.01">Nothing like trouble in this world. I reached home at 2 o'clock and hit the hay at 2.35 and was up at 6.30, yet I feel fine.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1180.68">I have already commenced my suppression of feelings and am cultivating the attitude of an Egyptian mummy in a Chicago cold storage plant. It is coming hard, yet whatever is can.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1193.94">I think absent treatment will do considerable to deaden my budding emotions. I must confess that it is much sweeter to drift right down onto the falls than it is to pull against the current, yet in the end, it is safer.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1209.67">In case of sudden death, 11th hour repentance, or a good picture show, you can always reach the rapidly chilling suitor at Hemlock316. That's a phone number for those you don't remember.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1223.82">2.20pm until 3.10 p.m. This is office hours for me. It is a great life if you don't weaken.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1231.71">Signed SJM.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1233.66">P.S. I never saw a more beautiful afternoon than this. I can hear the water falling on Walden's Ridge. It ought to be investigated. I think that's a family trait.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1246.11">The next day…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1249.1">Eleanor</span> <span class="timestamp" data-time="1249.1">[ 20:49 ]</span>
+        <p>
+          <span class=speakertext data-time="1249.1">to Mrs. Katharine Pierce at her house in Vine Street.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1253.24">Jack McCallie</span> <span class="timestamp" data-time="1253.24">[ 20:53 ]</span>
+        <p>
+          <span class=speakertext data-time="1253.24">Where she was saying, Dear Madam, I'm fully conscious that I'm not in a position to dictate to you or any way make my suggestions into regards to your personal affairs or habits. Yet, my interest in you is such that I cannot feel but feel grieved over the condition of your clothes.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1270.56">As a timid, shrinking man, I fear the possibility of being out with you someday and suffer the dreadful mortification of having a catastrophe due to buttons going astray.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1281.26">This situation is so dreadful to contemplate and is so distressing to my modesty that I am willing to move heaven and earth to prevent. So I've gone downtown and purchased some preventatives of the impending disaster. Please accept them with my compliments.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1295.84">spencer mccallie</span> <span class="timestamp" data-time="1295.84">[ 21:35 ]</span>
+        <p>
+          <span class=speakertext data-time="1295.84">What was he thinking?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1300.75">Jack McCallie</span> <span class="timestamp" data-time="1300.75">[ 21:40 ]</span>
+        <p>
+          <span class=speakertext data-time="1300.75">If you should feel indignant, or if you feel grateful, you can find me at Hemlock316 at 1110 a.m. till 12 noon, 2.20pm till 310 p.m, Hemlock 72 Saturdays 6.30 p.m. to 7 p.m, or 7.30 to 8 a.m.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1320.03">From 7 p.m. till 2.35 a.m, I'm frequently out automobile riding with a deaconess and can't be reached. Believe me, madam, to be your servant, Spencer Jarnick, and Macaulay.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1331.8">Allen McCallie</span> <span class="timestamp" data-time="1331.8">[ 22:11 ]</span>
+        <p>
+          <span class=speakertext data-time="1331.8">Jack, take a timeout for a second, and let's hear what this group… how they interpret those letters. My… my first…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1340.02">thought of his, I've been arrested for having my.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1343.74">Jack McCallie</span> <span class="timestamp" data-time="1343.74">[ 22:23 ]</span>
+        <p>
+          <span class=speakertext data-time="1343.74">taillights out is that they stayed out very late. He came home.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1347.38">Allen McCallie</span> <span class="timestamp" data-time="1347.38">[ 22:27 ]</span>
+        <p>
+          <span class=speakertext data-time="1347.38">late, maybe after she accepted a wedding proposal. That's why his emotions are exploding. I don't know what the water falling on Walden's Ridge refers to.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1358.16">Jack McCallie</span> <span class="timestamp" data-time="1358.16">[ 22:38 ]</span>
+        <p>
+          <span class=speakertext data-time="1358.16">I think that was purely just… he just said, it's a beautiful day here, and I need to go explore it. You'll hear that later. He just likes to go travel around and explore.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1370.26">Eleanor</span> <span class="timestamp" data-time="1370.26">[ 22:50 ]</span>
+        <p>
+          <span class=speakertext data-time="1370.26">Alan, I did not catch that at all, and I'm not sure what the buttons popping is, if someone could elucidate that one.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1378.74">Allen McCallie</span> <span class="timestamp" data-time="1378.74">[ 22:58 ]</span>
+        <p>
+          <span class=speakertext data-time="1378.74">So much.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1379.7">Somehow.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1382.05">grandmother, Mother Kay, lost a button when they were together, and he's just playing off of it. That, I would hate to be around you when your buttons start flying off. I'm gonna go buy you an extra set. Totally.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1395.64">Totally pulling her leg.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1397.6">Ellen McCallie</span> <span class="timestamp" data-time="1397.6">[ 23:17 ]</span>
+        <p>
+          <span class=speakertext data-time="1397.6">One of the things that I didn't catch on at the camping trip is how humorous this was, because this was all new to me. And also, I think, Jack, you were reading it a little bit more, with a straight face, waiting for us to react, and so I didn't know, hearing it again.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1414.25">is really fun, because you… you know, now that I know they were trying to be funny, and, you know, you've got this older man with this younger woman trying to court, yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1426.48">Jack McCallie</span> <span class="timestamp" data-time="1426.48">[ 23:46 ]</span>
+        <p>
+          <span class=speakertext data-time="1426.48">Interested.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1427.22">Ellen McCallie</span> <span class="timestamp" data-time="1427.22">[ 23:47 ]</span>
+        <p>
+          <span class=speakertext data-time="1427.22">It, it's, it's… It's salacious, is that, is that…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1431.03">Jack McCallie</span> <span class="timestamp" data-time="1431.03">[ 23:51 ]</span>
+        <p>
+          <span class=speakertext data-time="1431.03">That's about as racy as it gets, but well, maybe later, we'll see, but I read it as purely humor, and I think that's part of the courtship letters</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1443.53">the bit about, I will take the attitude of an Egyptian mummy in a Chicago cold storage plant. You know, he's just trying to… he's trying to keep cool, and I think it's, you know, I'm hot for you, honey, but I'll have to be chillin' out like an Egyptian mummy in a Chicago cold storage plant, so…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1463.65">I think you have to read them 3 or 4 times to kind of see that, but I agree. Spencer?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1471.23">spencer mccallie</span> <span class="timestamp" data-time="1471.23">[ 24:31 ]</span>
+        <p>
+          <span class=speakertext data-time="1471.23">I think you're being generous. I think he was totally tone-deaf, part of that, which Macaulay men have been known for in other generations.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1482.51">Jack McCallie</span> <span class="timestamp" data-time="1482.51">[ 24:42 ]</span>
+        <p>
+          <span class=speakertext data-time="1482.51">I'm gonna… I'm gonna make the statement that I think the Macaulay men represented by him later on…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1488.95">are… or have a big heart, and express themselves better than I ever knew that I could, so… that's for future interpretation.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1499.31">Alice McCallie</span> <span class="timestamp" data-time="1499.31">[ 24:59 ]</span>
+        <p>
+          <span class=speakertext data-time="1499.31">I agree with Spencer. Especially ineptitude there.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1503.76">Ellen Cochrane</span> <span class="timestamp" data-time="1503.76">[ 25:03 ]</span>
+        <p>
+          <span class=speakertext data-time="1503.76">Well, I'm astounded that… that, Katharine was… had such a sense of humor that she was following along with this, because you just… I think of her as being this, sort of, this single country woman until later in life, and then this was really her first…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1522.86">Her first foray into romance, and…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1527.34">Alice McCallie</span> <span class="timestamp" data-time="1527.34">[ 25:27 ]</span>
+        <p>
+          <span class=speakertext data-time="1527.34">Did any of you all know her? I mean, does she have a big sense of humor, and…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1531.74">You know.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1534.29">Jack McCallie</span> <span class="timestamp" data-time="1534.29">[ 25:34 ]</span>
+        <p>
+          <span class=speakertext data-time="1534.29">I think they both did.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1536.43">Allen McCallie</span> <span class="timestamp" data-time="1536.43">[ 25:36 ]</span>
+        <p>
+          <span class=speakertext data-time="1536.43">Okay.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1537.62">Jack McCallie</span> <span class="timestamp" data-time="1537.62">[ 25:37 ]</span>
+        <p>
+          <span class=speakertext data-time="1537.62">You'll hear.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1537.96">spencer mccallie</span> <span class="timestamp" data-time="1537.96">[ 25:37 ]</span>
+        <p>
+          <span class=speakertext data-time="1537.96">There's stories along.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1539.41">And they had a good time having coffee together, but Mother said of her, she knew nothing about men.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1548.46">Nothing.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1551.68">Jack McCallie</span> <span class="timestamp" data-time="1551.68">[ 25:51 ]</span>
+        <p>
+          <span class=speakertext data-time="1551.68">So I will carry forward, and please interrupt and offer comments, because that's what this is all about. The next letter, and these were all within the first… this is a 10-day time period where these letters come. So he's writing her daily, or, you know, twice a day, a lot of times, and this is not…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1567.09">the way we think if you mail a letter and it comes in 3 days later, these are letters that are delivered. I mean, they're within town, so, you know, he'll say… well, you'll see, so… so…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1577.15">It's as close to texting as you can get.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1582.58">at this point, she is sick, and she has left Vine Street, and she's living over in the country, over in East Ridge, on east of the… she's staying with a friend, on the other side of the ridge from where he's riding,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1603.67">Let's see,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1606.99">An unexpected change in our schedule today made it impossible for me to be in the office this morning. When you called me, I was teaching class and was expecting to go into another classroom and make an announcement about a change in classwork, so you can see that I was busy. Louise Bradford went with me this morning to the Kiwanis, and she seemed to have the time of her life.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1625.57">Someone got up at the meeting and proposed that the widower</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1629.8">Spencer McCallie, be made to get busy. He's there with a woman, hey, get busy, old man. This was aimed at me, especially as I had Louise as my guest. Everyone laughed, including Louise. Tom Carruthers promptly annexed her as soon as the meeting was over, so…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1647.08">The world is trying to get him to do something about this.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1651.57">He starts talking about his children. Mary is out with the flu, but expects to return to school in the morning. Ellen is now normal. My cold, a hoarse throat, seems to be somewhat better. At least I am no worse.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1665.02">Call me when you return, and I will plan for a celebration. Your main job now is get well. So do all in your power to make good on that proposition.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1674.82">I'm going to take a walk on the road that we were on last night, next Thursday, i.e. day after tomorrow. I shall walk from Shaliford Road towards Sherman Heights. I shall leave Shaliford Road northward at 4.20pm. It would not hurt my feelings for you to meet me on the road.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1692.88">Excuse Haste, written with many interruptions, SJM.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1696.87">That's the, sort of, the texting version of this. I'm gonna be here, hope you're there too.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1704.01">The next day, 3 days later, excuse me. Could it have been that you called me today or two after I had left here for St. Elmo? Excuse me, yeah. Could it have been…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1716.42">You, who called me today a moment or two after I had left for St. Elmo. At least I was informed by our stenographer that a lady had been calling me. I had to leave here about 10.45 so as to get to my car in shape by 11 and reach the school by 11.30. I am selfish enough to hope that it was you.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1734.46">For thus I shall have the sweet satisfaction of knowing that you were thinking of me.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1741.21">It now looks as if my health would demand that I take a trip over the ridge Tuesday, March 2nd.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1747.65">This is on February 27th, he writes it. I'm under the impression that I'm going to pack up the time so as to hit the high hill at 4.05 PM. As my nervous system will not permit me to be alone, I sincerely trust that I may meet a person on that hill.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1764.17">Tuesday, March 2nd, 4.05 p.m. sharp.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1770.76">If I were to follow inclinations, I would certainly march over that ridge this afternoon. It is strange how my interests have shifted from Vine and Douglas, where she had been living, to the east side of the ridge where she was, because he was sick. She was sick. A letter from you would be deeply appreciated by SJM.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1790.63">Note, I am to entertain tonight in honor of SJM Jr, aged 11.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1797.31">We are to have a cake with 11 candles. Exciting.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1800.82">Uncle Spence's 11th birthday in 1920.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1805.3">A couple of days later. Wait!</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1807.39">Yes.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1808.28">Ellen McCallie</span> <span class="timestamp" data-time="1808.28">[ 30:08 ]</span>
+        <p>
+          <span class=speakertext data-time="1808.28">But uncle… uncle… grandfath… my grandfather.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1813.35">When did he have TB? Just after that, right?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1816.63">Jack McCallie</span> <span class="timestamp" data-time="1816.63">[ 30:16 ]</span>
+        <p>
+          <span class=speakertext data-time="1816.63">You'll hear soon.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1817.97">Ellen McCallie</span> <span class="timestamp" data-time="1817.97">[ 30:17 ]</span>
+        <p>
+          <span class=speakertext data-time="1817.97">Oh, I sh- I should be more patient.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="1820.0">Jack McCallie</span> <span class="timestamp" data-time="1820.0">[ 30:20 ]</span>
+        <p>
+          <span class=speakertext data-time="1820.0">I love it that you're thinking.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1823.96">Oh…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1827.34">Our resistance, this is another letter a couple days later. Our trip Saturday struck me when my resistance was low, so I have been under the weather ever since with the temperature.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1838.75">Ranging from 102 to 97 and 4 fifths with a headache as an addition. In fact, I'm just beginning to sit up and take notice. I shall really go to bed, but I'm working under full pressure, just the same with fever, chills, and aches to the contrary.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1853.38">I hope to be my usual self by Saturday, but I do not want any Frankfurters to eat as I partly lay them to my downfall. My time is up, so I'm closing. Don't forget to plan something for Saturday.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1867.08">Hastings, if you would pull up the… I meant to do this at the beginning, the…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1876.88">slide, it's the picture of the, letters.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1885.07">I guess it's maybe slide 8.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1888.8">So this is what the letters look like. This is the only picture I have of the letters, but, I highlight this one, which I'm about to read, and,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1901.37">the…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1903.37">Key point is, every letter up until now, he's written to Dearest Katharine, K-A-T-H-E-R-I-N-E. This is the first time he actually writes it, spells it with an A, and underlines it. So, up until this point, he's been writing her name wrong. At some point.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1919.84">It comes forth that, you know, hey buddy, if you're gonna date me, you better spell my name right. So, it's funny that if you pay attention to all the headings and everything before then, he misspelled it. This one, he gets right, he underlines it, and every time thereafter, it's right.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1938.2">And just to prove it, if you go to the next slide.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1944.05">this is her signature, her handwriting from her Bible, so the proof is in the pudding, but I just thought that was historic and pertinent to all of the Katharines that are in our family still. So, any comments from,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1963.98">There you go. So, as of April 19th, 1920, he gets it right.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1974.24">And I'm… I'm beginning to think this is about when he asks her… asks her hand.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1980.78">I called Walnut 6839 at 2.20pm and was answered by a feminine voice that was not yours. I was so disappointed that I hung up on the phone instantly for fear least I be recognized. I'm now counting the hours until Saturday.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1995.01">Since you did not stipulate any fixed time on Saturday, I'm asking that you let me come by Friday night so I can be there at 12.01 midnight. Please consider this request and give me your official decision upon the request as soon as possible.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2010.36">There is nothing new to report upon here, except that I can neither slumber nor sleep thinking of you. Please make up your mind by 12.01 a.m. Saturday.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2022.31">Allen McCallie</span> <span class="timestamp" data-time="2022.31">[ 33:42 ]</span>
+        <p>
+          <span class=speakertext data-time="2022.31">Jack, you had that up on the screen a minute ago, and that was labeled Bulletin number one.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2028.01">Jack McCallie</span> <span class="timestamp" data-time="2028.01">[ 33:48 ]</span>
+        <p>
+          <span class=speakertext data-time="2028.01">Several other than that, they're Bulletin 2, 3, and 4, and he, he… not all of them were, but there were a series that were bulletins. That was on April 19th. On April 20th, this is… so that was on Monday, he's writing because he wants to be there</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2044.04">right at crack of… crack of the day on Saturday. So Tuesday, from the way I'm now feeling, from the amount of nervousness that I'm now showing, I fully expect to be wild before the week is out. I haven't done a lick of really worthwhile work this week.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2059.69">I can't think and I can't plan. One thing I did do just now, Bachman, Dr. Bachman, phoned me that he was expecting me to go to the Boy Scout camp, leaving here Saturday.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2071.07">date in question, 2PM this week and remaining over Sunday. He was insistent, but I was adamant in refusing to consider… refusing to consider that it was my duty.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2082.19">I told him that I was planning to cut out my work with the Boy Scout work. I don't think he was pleased, but I can't help it. I must cut down somewhere and somehow.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2093.179">Ellen Cochrane</span> <span class="timestamp" data-time="2093.179">[ 34:53 ]</span>
+        <p>
+          <span class=speakertext data-time="2093.179">We're…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2093.679">Jack McCallie</span> <span class="timestamp" data-time="2093.679">[ 34:53 ]</span>
+        <p>
+          <span class=speakertext data-time="2093.679">Basically saying, I want to be with you, honey.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2096.83">Ellen Cochrane</span> <span class="timestamp" data-time="2096.83">[ 34:56 ]</span>
+        <p>
+          <span class=speakertext data-time="2096.83">Were all the kids at home, was he now also taking care of all the kids?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2100.59">Jack McCallie</span> <span class="timestamp" data-time="2100.59">[ 35:00 ]</span>
+        <p>
+          <span class=speakertext data-time="2100.59">Yeah, this is… this is… they're dating, so, there is a, there is a housekeeper and a, housekeeper, Nellie, and a maid, excuse me, a cook referenced in the letters, you'll hear some of that,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2116.82">Down… you'll hear some of that.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2120.05">I know you must now be worn out by the work connected with this Presbyterial. I wish you would let me… I wish you would let up tomorrow and run away with me for a short ride and suffer in words and tears Thursday about 4.30 or 5pm, and get back by 8pm. I know of a real pretty drive over near Raccoon Mountain.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2139.29">Near where we had been going. Just phone me your answer at 1PM, Hemlock 316. I will answer.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2145.72">Yours to be, I hope, Spencer.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2149.53">David McCallie</span> <span class="timestamp" data-time="2149.53">[ 35:49 ]</span>
+        <p>
+          <span class=speakertext data-time="2149.53">Hmm.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2152.44">Jack McCallie</span> <span class="timestamp" data-time="2152.44">[ 35:52 ]</span>
+        <p>
+          <span class=speakertext data-time="2152.44">So… That's… the lead up to the engagement.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2163.44">they're married in April, and there are a couple more letters referring to that, just in terms of the planning, but not a whole lot.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2175.18">I see a lot of humor there in the reading that I saw.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2181.6">Anybody comments, questions?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2183.46">Eleanor</span> <span class="timestamp" data-time="2183.46">[ 36:23 ]</span>
+        <p>
+          <span class=speakertext data-time="2183.46">Yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2183.94">Jack McCallie</span> <span class="timestamp" data-time="2183.94">[ 36:23 ]</span>
+        <p>
+          <span class=speakertext data-time="2183.94">answer.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2184.3">Eleanor</span> <span class="timestamp" data-time="2184.3">[ 36:24 ]</span>
+        <p>
+          <span class=speakertext data-time="2184.3">question,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2186.33">Do you all think he's asked her at this point? He's referring, but he keeps referring to Hope I Will Here. Do you think he's asked her?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2195.22">Jack McCallie</span> <span class="timestamp" data-time="2195.22">[ 36:35 ]</span>
+        <p>
+          <span class=speakertext data-time="2195.22">Magathie's waiting for a yes or no.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2197.71">Eleanor</span> <span class="timestamp" data-time="2197.71">[ 36:37 ]</span>
+        <p>
+          <span class=speakertext data-time="2197.71">Yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2201.3">Allen McCallie</span> <span class="timestamp" data-time="2201.3">[ 36:41 ]</span>
+        <p>
+          <span class=speakertext data-time="2201.3">Just given the number of… the lack of days</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2204.74">We're in early March, and they're married within a month or two.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2210.48">Jack McCallie</span> <span class="timestamp" data-time="2210.48">[ 36:50 ]</span>
+        <p>
+          <span class=speakertext data-time="2210.48">Yeah, those, those last letters were April 20th,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2215.27">they married on May 26th. I have a letter from,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2221.9">May 21st, that he's writing Ms. Schultz that it will be impossible for us to accept her invitation, for us to accept her invitation for Sunday dinner, so you need not to worry about that.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2233.75">I will… shall drop making arrangements for the party supper at the Grand Wednesday evening. They got married at the Grand Hotel in Chattanooga. So, by May 21st.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2245.81">the letters are about the wedding planning, so I'm kind of assuming that when he was fit to be tied and couldn't get any work done, that he was engaged at that point.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2257.05">Eleanor</span> <span class="timestamp" data-time="2257.05">[ 37:37 ]</span>
+        <p>
+          <span class=speakertext data-time="2257.05">Hmm. Okay.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2258.42">Ellen McCallie</span> <span class="timestamp" data-time="2258.42">[ 37:38 ]</span>
+        <p>
+          <span class=speakertext data-time="2258.42">But, Dr. Jack, there was a question from Dr. Carey in the,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2263.88">in the chat that I thought… so, Carrie, would you… Yeah, so I had… I had my doctor hat on while you were reading about the illnesses that they had, and I guess…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2274.87">Kari McCallie</span> <span class="timestamp" data-time="2274.87">[ 37:54 ]</span>
+        <p>
+          <span class=speakertext data-time="2274.87">I was just wondering, like, I wonder if they were scared by these illnesses because of what had happened to his first wife, Alice, or if this was just kind of run-of-the-mill and expected.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2287.8">I think…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2288.77">Jack McCallie</span> <span class="timestamp" data-time="2288.77">[ 38:08 ]</span>
+        <p>
+          <span class=speakertext data-time="2288.77">My answer is going to be both. If you go back and read that original letter, and you can in the… when it's published, the one that Alice Fletcher writes, she talks about how everybody else has been sick, and then it's basically, she got sick and died within a few days, and disease is a pertinent theme, and you'll hear it again</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2312.52">shortly, but, I think everybody had to be scared and very aware of it, but.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2319.73">Ellen Cochrane</span> <span class="timestamp" data-time="2319.73">[ 38:39 ]</span>
+        <p>
+          <span class=speakertext data-time="2319.73">Well, when Alice got sick, she… it was…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2322.41">a lot of people in the country were sick. I mean, that was… that was…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2327.02">Jack McCallie</span> <span class="timestamp" data-time="2327.02">[ 38:47 ]</span>
+        <p>
+          <span class=speakertext data-time="2327.02">That was the… that was the pandemic that…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2329.53">Ellen Cochrane</span> <span class="timestamp" data-time="2329.53">[ 38:49 ]</span>
+        <p>
+          <span class=speakertext data-time="2329.53">Yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2329.97">Jack McCallie</span> <span class="timestamp" data-time="2329.97">[ 38:49 ]</span>
+        <p>
+          <span class=speakertext data-time="2329.97">Predated the one we've recently had in terms of Perfect.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2336.14">Ellen Cochrane</span> <span class="timestamp" data-time="2336.14">[ 38:56 ]</span>
+        <p>
+          <span class=speakertext data-time="2336.14">Yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2337.92">Jack McCallie</span> <span class="timestamp" data-time="2337.92">[ 38:57 ]</span>
+        <p>
+          <span class=speakertext data-time="2337.92">So, this is now… So they're married in April, of 20.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2346.31">Allen McCallie</span> <span class="timestamp" data-time="2346.31">[ 39:06 ]</span>
+        <p>
+          <span class=speakertext data-time="2346.31">made.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2347.43">Bay of 2020.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2348.9">Jack McCallie</span> <span class="timestamp" data-time="2348.9">[ 39:08 ]</span>
+        <p>
+          <span class=speakertext data-time="2348.9">Yeah, May of 20.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2351.98">This is a series of letters, 10 days of letters, in September of 20, and she is now back in Williamsport, Williamsport.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2366.99">Again, this is the snapshot effect, we have to keep in mind, but it's,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2374.08">Not many months after their marriage.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2378.73">And Spencer writes, My dear Katharine, I deeply appreciate your letter, which arrived today.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2385.42">Thomas, and just rambling, and then he goes, Thomas Hook started at Wright School this morning, but had to be sent home with a 103 temperature about 10 o'clock.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2395.26">Alice is still too unwell to enter. Ellen is about well, so is Spencer. Mary seemed to be alright. I haven't seen Tom since he was brought home, so I can't tell you how sick he is. He has not been very well, however, since you left. On the other hand, he has not been very sick.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2415.29">We certainly have had our siege, but I look for gradual improvement. From now on, I do not… and I do not want you to cut your trip one day on our account, neither does Nellie. Nellie is the…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2426.87">Helper. Helper. Not the cook, but referenced a lot in these letters. We shall make out okay. Of course, we miss you very much indeed. I really do believe T-Hook and Ellen miss you the most among the children.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2441.71">I dare not allow myself to think much so long as it is uncertain about your return. I have to keep myself in check and practice stoicism in regard to you, as I don't want expectations to run high and then be checked.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2460.45">This series of 10 days is not as… so the last series that you guys that heard it at High Rocks remembered and kind of get a different flavor, that's a month that she's gone then, and so just to keep it in mind, she's not…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2477.63">pregnant with daddy yet. She's not… they're early in their marriage. She's only gone for 10 days or so, the letters suggest.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2486.07">And we'll go from there. I'm so… my dear Katharine, I'm somewhat afraid that I am annoying you with an unnecessary amount of letters, but all you have to do is holler QUIT.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2497.28">Tonight finds the children in pretty good shape. Spencer having recovered from his illness, Alice still suffers from sore feet, but should be able to go to work to school Monday.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2509.82">I am making desperate efforts to break Alice, who is now 6 years old, from her bad habits, and I take her to bed… I take her up just before I go to bed.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2519.48">Then I take her up between 1 and 3 o'clock, then make her get up with me when I do. So far, she has responded beautifully. She is still sleeping downstairs on my sleeping porch.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2530.78">I don't know if… and Alice had bed wetting issues or not, but here's the… 45-year-old.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2538.63">Husband of five, whose wife is away with her.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2542.05">family who she's very close to in Pennsylvania, and he's still in charge of raising 6-year-olds who wet the bed.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2549.02">Paul Pressly</span> <span class="timestamp" data-time="2549.02">[ 42:29 ]</span>
+        <p>
+          <span class=speakertext data-time="2549.02">Our mother never told us.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2550.74">Jack McCallie</span> <span class="timestamp" data-time="2550.74">[ 42:30 ]</span>
+        <p>
+          <span class=speakertext data-time="2550.74">Well, and the reference to the sleeping ports. Now, all of us who know, Shalliford Road, 16 Shaliford Road.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2559.33">There are several references here in terms of… well, here's a good one. The cold weather came all at once. Last night was uncomfortable, and we've had to have fires today in both stoves. I've asked Mr. Shoemaker to go over all the locks, doors, etc, so as to prepare for the cold weather. He is tremendously busy just at the present, but hopes to get down here in a week or so.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2582.04">I must order coal and arrange for the heating of the upstairs. The stove in the dining room heats the downstairs in splendid fashion, and no other fire will be necessary save on extremely cold weather. The paper forecasts frost for tonight. This is September 30th.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2598.75">Think of Shallerford Road and how cold that house is. I remember that as a kid. So, they shifted around where they slept, I think, based on the heating.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2608.25">Go ahead.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2610.36">Joanie McCallie</span> <span class="timestamp" data-time="2610.36">[ 43:30 ]</span>
+        <p>
+          <span class=speakertext data-time="2610.36">Yes. I have a question. Can you refresh our memory? Why Mother Kay was in Williamsport, just a few months after they got married?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2620.01">Jack McCallie</span> <span class="timestamp" data-time="2620.01">[ 43:40 ]</span>
+        <p>
+          <span class=speakertext data-time="2620.01">That's, that's the, that's the interesting thing about these letters. We, we, that's her home, her parents are still alive. She has a brother and a sister who live up there.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2632.19">that prequel letter that I wrote, that I read from 1919, before any of these other ones, where she was… she had been working at First Presbyterian Church, and had gone back, and they… and First Presbyterian Church basically said, hey, we think you're doing great work, we'll give you a raise, please come back. So, she was…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2651.32">sort of drawn back to Williamsburg… Williamsport, even before</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2656.97">we start interacting with her, and that was a letter she saved. That's the snapshot effect. That letter, is the only non-family letter in this grouping. So, to me, it was just an interesting snapshot that</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2672.22">home was very important to her, and even in the later letters, that we haven't gotten into.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2681.46">That's next year. she, she continues to go back. So, I think the simple answer is, she was close to home.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2690.96">Alice McCallie</span> <span class="timestamp" data-time="2690.96">[ 44:50 ]</span>
+        <p>
+          <span class=speakertext data-time="2690.96">Or she could have had a… I mean, if there was illness, there could have been illness in Williamsport, too. She could have had a parent or a…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2697.73">you know.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2698.57">Jack McCallie</span> <span class="timestamp" data-time="2698.57">[ 44:58 ]</span>
+        <p>
+          <span class=speakertext data-time="2698.57">Her father… her father dies a couple of years later. We got the telegram from her brother letting her know that, and the letters that she had written prior to that, so… so that is absolutely part of it. I mean, and it's a two-day train trip, to… to get there, and you'll see that, but…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2719.35">Allen McCallie</span> <span class="timestamp" data-time="2719.35">[ 45:19 ]</span>
+        <p>
+          <span class=speakertext data-time="2719.35">One of the things that we, we, our generation.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2723.46">Jack McCallie</span> <span class="timestamp" data-time="2723.46">[ 45:23 ]</span>
+        <p>
+          <span class=speakertext data-time="2723.46">Never thought about, and that's what these letters are kind of neat about, in terms of that.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2727.58">Allen McCallie</span> <span class="timestamp" data-time="2727.58">[ 45:27 ]</span>
+        <p>
+          <span class=speakertext data-time="2727.58">I don't want to jump ahead of you too far, Jack, but…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2730.69">Joni, if you remember what Jack read at High Rocks, the</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2735.28">The… oh, you weren't there, so you haven't heard the later letter.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2738.94">Joanie McCallie</span> <span class="timestamp" data-time="2738.94">[ 45:38 ]</span>
+        <p>
+          <span class=speakertext data-time="2738.94">I… no, I wa… this was…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2740.21">Allen McCallie</span> <span class="timestamp" data-time="2740.21">[ 45:40 ]</span>
+        <p>
+          <span class=speakertext data-time="2740.21">We were the two times.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2740.85">Joanie McCallie</span> <span class="timestamp" data-time="2740.85">[ 45:40 ]</span>
+        <p>
+          <span class=speakertext data-time="2740.85">ago, right? I was… we were there.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2742.88">Allen McCallie</span> <span class="timestamp" data-time="2742.88">[ 45:42 ]</span>
+        <p>
+          <span class=speakertext data-time="2742.88">Oh.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2743.84">the, the, the letters after this September letter Jack just read, quickly become plaintive. Please.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2753.54">Please come back, but please make up your mind.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2756.76">Joanie McCallie</span> <span class="timestamp" data-time="2756.76">[ 45:56 ]</span>
+        <p>
+          <span class=speakertext data-time="2756.76">Yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2757.19">Allen McCallie</span> <span class="timestamp" data-time="2757.19">[ 45:57 ]</span>
+        <p>
+          <span class=speakertext data-time="2757.19">clearly communicated, I may not be coming back. And just a storyteller in all of us, they got married in May, this is now September. Well, what's the difference between May and September? There's no school.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2772.36">So, she's… space in the summer, taking care of 5 kids at 16 Challiford Road, and…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2782.11">Jack McCallie</span> <span class="timestamp" data-time="2782.11">[ 46:22 ]</span>
+        <p>
+          <span class=speakertext data-time="2782.11">Something says…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2783.84">Allen McCallie</span> <span class="timestamp" data-time="2783.84">[ 46:23 ]</span>
+        <p>
+          <span class=speakertext data-time="2783.84">Either I have to leave town, or I've got to get out of town. And September becomes October and November, and he's…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2791.83">And I don't think he would be embarrassed by the words. He's begging her, please make up your mind, but please make it up to come back.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2799.99">Joanie McCallie</span> <span class="timestamp" data-time="2799.99">[ 46:39 ]</span>
+        <p>
+          <span class=speakertext data-time="2799.99">Yeah, so in other words, she was overwhelmed with having to take care of 5 children and maybe needed a break?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2807.28">Allen McCallie</span> <span class="timestamp" data-time="2807.28">[ 46:47 ]</span>
+        <p>
+          <span class=speakertext data-time="2807.28">needed to rethink whether she should have gotten married. Remember, she's 20 years younger than me.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2812.44">Joanie McCallie</span> <span class="timestamp" data-time="2812.44">[ 46:52 ]</span>
+        <p>
+          <span class=speakertext data-time="2812.44">Yeah, okay, thanks.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2813.96">Jack McCallie</span> <span class="timestamp" data-time="2813.96">[ 46:53 ]</span>
+        <p>
+          <span class=speakertext data-time="2813.96">Oh, keep going.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2816.16">Allen McCallie</span> <span class="timestamp" data-time="2816.16">[ 46:56 ]</span>
+        <p>
+          <span class=speakertext data-time="2816.16">Marshall had a question.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2817.07">Jack McCallie</span> <span class="timestamp" data-time="2817.07">[ 46:57 ]</span>
+        <p>
+          <span class=speakertext data-time="2817.07">Oh, I'm sorry, Marshall.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2818.44">Marshall McCallie</span> <span class="timestamp" data-time="2818.44">[ 46:58 ]</span>
+        <p>
+          <span class=speakertext data-time="2818.44">I think… I remember talking with my mother.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2822.09">And she said, the kids really…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2825.36">We're not very keen on the new wife.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2829.6">Ellen Cochrane</span> <span class="timestamp" data-time="2829.6">[ 47:09 ]</span>
+        <p>
+          <span class=speakertext data-time="2829.6">I was gonna say…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2830.16">Marshall McCallie</span> <span class="timestamp" data-time="2830.16">[ 47:10 ]</span>
+        <p>
+          <span class=speakertext data-time="2830.16">For the first few months.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2831.79">And they were quite tough.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2834.12">So it was really hard for her in those first few months.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2838.76">I think Ellen… I see Ellen shaking her head, I think…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2842.72">Your mother, Ellen, may have told us a bit about that as well.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2847.93">Ellen Cochrane</span> <span class="timestamp" data-time="2847.93">[ 47:27 ]</span>
+        <p>
+          <span class=speakertext data-time="2847.93">Exactly. And then Alice, didn't want to stay. Alice went and lived… not Alice, but, Mary.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2855.93">Marshall McCallie</span> <span class="timestamp" data-time="2855.93">[ 47:35 ]</span>
+        <p>
+          <span class=speakertext data-time="2855.93">Live with another family member.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2859.06">spencer mccallie</span> <span class="timestamp" data-time="2859.06">[ 47:39 ]</span>
+        <p>
+          <span class=speakertext data-time="2859.06">You're in Indianapolis.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2860.37">Marshall McCallie</span> <span class="timestamp" data-time="2860.37">[ 47:40 ]</span>
+        <p>
+          <span class=speakertext data-time="2860.37">Ohio for a while, didn't she? And then came back, decided that…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2865.0">Actually, it was easier to be back home.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2868.8">Ellen Cochrane</span> <span class="timestamp" data-time="2868.8">[ 47:48 ]</span>
+        <p>
+          <span class=speakertext data-time="2868.8">I don't know how long she was gone. And then… and we still don't have, like, we haven't gotten to win,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2874.6">when Spencer… Senior, junior.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2880.46">Jack McCallie</span> <span class="timestamp" data-time="2880.46">[ 48:00 ]</span>
+        <p>
+          <span class=speakertext data-time="2880.46">Second, the second.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2882.81">Ellen Cochrane</span> <span class="timestamp" data-time="2882.81">[ 48:02 ]</span>
+        <p>
+          <span class=speakertext data-time="2882.81">When, when he got, TB, because he had been sick, we were… we last were reading, he'd been a little sick, but he was getting better.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2891.11">Marshall McCallie</span> <span class="timestamp" data-time="2891.11">[ 48:11 ]</span>
+        <p>
+          <span class=speakertext data-time="2891.11">Right.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2892.37">Jack McCallie</span> <span class="timestamp" data-time="2892.37">[ 48:12 ]</span>
+        <p>
+          <span class=speakertext data-time="2892.37">I'm gonna move on a little bit, just because this one… I like this for a second. This is, the same, still in that time period. This is in September of 20. He writes, our first accident occurred at school yesterday when one of the boys from Texas</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2910.07">broke his leg in a friendly scuffle with his best friend, also from Texas. Dr. Bibb came out immediately and fixed him up. So, I find that interesting in 1920, because Dr. Bibb, his…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2924.51">brothers… Park McCallie's father-in-law, so whatever that makes him.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2931.94">Was the school physician in 1920,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2934.92">For the McCallie boys. Dr. Bibb died in 1951. David McCallie, my father, came back, took over his practice, became the school physician until Jack McCallie came back in 1987 and joined his father and became the school doctor until currently. So.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2953.2">106 years of the Macaulay physician represented in that paragraph. I thought that was kind of interesting.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2959.99">Ellen McCallie</span> <span class="timestamp" data-time="2959.99">[ 49:19 ]</span>
+        <p>
+          <span class=speakertext data-time="2959.99">Are you still the school physician, Jack?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2962.55">Jack McCallie</span> <span class="timestamp" data-time="2962.55">[ 49:22 ]</span>
+        <p>
+          <span class=speakertext data-time="2962.55">For the boarding students, if they break their legs, they don't call me.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2968.51">A long letter that we won't go into about the help, mother Kay was…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2979.36">considering hiring a woman in Pennsylvania and bringing her back, and there was a whole letter about how would it work. Anyway, I didn't want to get into that. But in that letter.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2992.66">I'll continue. This is…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2997.09">October 3rd, 1920. Mary is sick with tonsillitis and has been in bed since Friday night. She had 103 yesterday, but is better tonight, but will not be allowed to go to school tomorrow. Nellie is beginning to feel… Nellie is the helper, is beginning to feel the effects of the strain she has had at least one sick child on her hands every moment since you left, and on several occasions, it has been 2 or 3 down at once.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3020.04">I do not believe I ever remember conditions worse. She has lost considerable sleep, and it shows it.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3026.5">I had been up several nights myself, but feel fairly well.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3031.57">I have tried to take Nellie out frequently. This afternoon, for instance, I took her, Bob, her husband, and 3 of the children out past Marfield, around the north end of the Missionary Ridge, across Chickamauga Creek, out Harrison Pike, past Miney Oaks, and back by the Cleveland Highway.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3049.13">Those are… he just likes to get out and drive, and that's kind of a theme that is a Macaulay thing.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3057.59">I'm beginning to realize, as far as comfort is concerned, we made a big mistake in not going to Douglas Hall for the first year or two. Nevertheless, I am ready and willing to do what can be done under the circumstances. So, I guess they had the option when,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3074.14">he was the father of moving onto the campus and living in Douglas Hall, which is probably where Park and others lived, but he chose Shalliford Road, and it was a challenge.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3088.44">You have never said that you were coming back here, so I have not sent you your October allowance.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3094.2">That's Trumpian, maybe. Whatever you do about it, please be kind enough to take me into your confidence and give me time to… to make my plans. I don't know that that's…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3107.23">the end he's contemplating, or just, I don't know when you're gonna come back from up there, please let me know.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3113.85">It has not been a happy month for me, and I feel under a heavy depression. Park is overworked and looks bad. Hattie feels it and is helping in the office. I would go back nights and help Mary out.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3125.03">I'm not getting up… excuse me, I'm now getting up every morning at 6 AM and going hard until nearly dark. So when night comes, I'm pretty well fagged out. One of my teachers has been sick, so to speak frankly, I have my hands full at the school, and I find the double problem somewhat too much.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3144.4">Nevertheless, any decision you make will be a relief, as uncertainty is even more unpleasant.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3151.27">I do want you to think it out, pray it out, and then act. I think it is fair that I state that I hope you will return. I wish you could return with love and willingness, as anything is not really fair, as anything else is not really fair. Love and willingness underlined.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3169.21">That's a heartfelt plea.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3172.02">I have written you rather often, and would have written more often, and with more warmth in my letters, but for your own non-communicative and indifferent attitude.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3181.48">I appreciate even the two letters that I have received, and would love to have things more affectionate.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3188.39">I feel that in these things, I have gone somewhat beyond the 50-50.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3193.59">Yours, Spencer.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3196.48">In that envelope, he also sends another one. I just found 3 letters of September 28th this morning. It had been misplaced, so it makes 3 letters and all that I've received from you. I just found your letter. It now makes 3 letters. Mary seems much better and will probably go back to school. Please write me immediately what your plans are and when to expect you coming home.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3218.3">There you go.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3221.87">Ellen Cochrane</span> <span class="timestamp" data-time="3221.87">[ 53:41 ]</span>
+        <p>
+          <span class=speakertext data-time="3221.87">Well, I think that answers the question about</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3224.57">why do you think she went right away to, you know, after 3 months of marriage, why did she go up to, Williamsport?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3233.11">Allen McCallie</span> <span class="timestamp" data-time="3233.11">[ 53:53 ]</span>
+        <p>
+          <span class=speakertext data-time="3233.11">You can…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3233.62">Ellen Cochrane</span> <span class="timestamp" data-time="3233.62">[ 53:53 ]</span>
+        <p>
+          <span class=speakertext data-time="3233.62">She was really having a hard time.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3235.74">Allen McCallie</span> <span class="timestamp" data-time="3235.74">[ 53:55 ]</span>
+        <p>
+          <span class=speakertext data-time="3235.74">you can go backwards and hear everything they were arguing about. The help.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3240.58">The place they lived, the work schedule, sick kids. It was…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3246.65">Ellen Cochrane</span> <span class="timestamp" data-time="3246.65">[ 54:06 ]</span>
+        <p>
+          <span class=speakertext data-time="3246.65">Five kids.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3248.14">Allen McCallie</span> <span class="timestamp" data-time="3248.14">[ 54:08 ]</span>
+        <p>
+          <span class=speakertext data-time="3248.14">Yeah. Five kids.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3250.2">Ellen Cochrane</span> <span class="timestamp" data-time="3250.2">[ 54:10 ]</span>
+        <p>
+          <span class=speakertext data-time="3250.2">Not one sick, but yes.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3251.84">Allen McCallie</span> <span class="timestamp" data-time="3251.84">[ 54:11 ]</span>
+        <p>
+          <span class=speakertext data-time="3251.84">Yeah. The… the lack of domestic help,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3257.31">All of those things were… were bones of contention.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3262.5">Jack McCallie</span> <span class="timestamp" data-time="3262.5">[ 54:22 ]</span>
+        <p>
+          <span class=speakertext data-time="3262.5">The next letter is the one that's been referenced a little bit already, and it's not clear exactly the</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3270.13">post date on the… the postmark on this, those were 1920. This is March of 21. It's… he's writing her in Williamsport,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3280.85">It may be March 22, because that's the last series, which she was up there for a month. So in March of 22, she's there for a month. This may be March of 21.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3294.48">But this is an important letter, I think, gets to the meat of the matter.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3300.41">Now that the danger has passed, thank God, I'm going to tell you of Spencer's illness.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3305.97">Wednesday of last week, he was suddenly stricken with pleurisy, and came to me crying as if his heart was to break, saying that he couldn't breathe. It was then nearly noon, but I very fortunately did not send him home, but sent him immediately to Mrs. Crow.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3322.27">By night, he had a well-developed case of pneumonia. Dr. Bibb got immediately on the case and secured a professional nurse, a Miss Gregg, to assist Ms. Croak, so as to give him constant attention day and night.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3336.91">His fever was high for several days, above 103. His respiration and pulse worried Dr. Bibb exceedingly, and it looked as if the little fellow would cross the river in a few days.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3348.73">I must confess that I buried him Sunday. I cried most of the day and prayed as earnestly as I know how to God to spare him.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3357.55">We were all worried and are all praying for him. Monday, the crisis came, and a rapid change for the better set in, and it now looks as if he'll be up in a few days. He is still in the school infirmary, and he still has a professional nurse.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3371.83">We do not expect to take any chances. He has suffered at times intensely, but always with remarkable fortitude.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3380.28">it's my sense that this is probably the onset of Uncle Spence with TB. You'll hear later, they regularly drive over to the sanitarium where Uncle Spence is recovering, Pine Breeze, so,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3398.83">That's the…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3401.36">origin of that. While the crisis was on, I missed you and your sympathy more than I can express. I slept very poorly and would wake again and again with a start. Then it was that I wished for you, for I believed that just knowing that you were there would have comforted me and eased my nerves.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3419.39">He is now regaining his appetite and beginning to take an interest in life. Sunday was his birthday, and the first thing he mentioned was the gun.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3427.88">Mary has been a grand good girl, and she is lots of comfort to me. We had Tom and Bessie last night to supper. The weather is grand, and everything is beginning to show a little green. I am very busy, but will write you tomorrow.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3446.87">Ellen Cochrane</span> <span class="timestamp" data-time="3446.87">[ 57:26 ]</span>
+        <p>
+          <span class=speakertext data-time="3446.87">So, which… which year of… of this was…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3450.99">So that letter was in March.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3453.46">So that was before the wedding?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3455.59">Jack McCallie</span> <span class="timestamp" data-time="3455.59">[ 57:35 ]</span>
+        <p>
+          <span class=speakertext data-time="3455.59">No, they're married now. They're married now. This isn't 21 or 22, so, they've been married a year, or two. That's what I'm not sure exactly the post date on that, the year of it. It wasn't good on the envelope.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3467.84">Allen McCallie</span> <span class="timestamp" data-time="3467.84">[ 57:47 ]</span>
+        <p>
+          <span class=speakertext data-time="3467.84">Well, you know it was 21 because Daddy's not mentioned in the letter.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3471.84">Alice McCallie</span> <span class="timestamp" data-time="3471.84">[ 57:51 ]</span>
+        <p>
+          <span class=speakertext data-time="3471.84">But if she… if that was met… what'd you say, March of 21, and your dad was born in August, she could have been…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3480.81">in Pennsylvania, just stay away from Sick kids, or something.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3487.1">Jack McCallie</span> <span class="timestamp" data-time="3487.1">[ 58:07 ]</span>
+        <p>
+          <span class=speakertext data-time="3487.1">That's the only letter in that… there are no others in that time period, so whereas all these others, it's a 10-day, or a month, or something like that, this one's the only, you know, don't know the significance of it.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3501.07">Allen McCallie</span> <span class="timestamp" data-time="3501.07">[ 58:21 ]</span>
+        <p>
+          <span class=speakertext data-time="3501.07">But if it's… I mean, he's writing her a letter that's filled with grim news, and he doesn't mention</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3507.98">her son… So she's not yet had a son.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3511.62">Joanie McCallie</span> <span class="timestamp" data-time="3511.62">[ 58:31 ]</span>
+        <p>
+          <span class=speakertext data-time="3511.62">Alright.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3512.26">Allen McCallie</span> <span class="timestamp" data-time="3512.26">[ 58:32 ]</span>
+        <p>
+          <span class=speakertext data-time="3512.26">Annie has not yet been born. There's no way that letter goes out without a mention of her baby.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3517.24">Either in her possession in Pennsylvania, or with… with…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3522.16">dad in Chattanooga, I mean, with Spencer in Chattanooga, and she's, at that point, if I'm correct, she's…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3529.04">4 months… 3 months expecting. That's… daddy's born in 821, and that brother's written in 321.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3539.04">Small chance he doesn't know she's expecting.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3541.7">Eleanor</span> <span class="timestamp" data-time="3541.7">[ 59:01 ]</span>
+        <p>
+          <span class=speakertext data-time="3541.7">Hmm.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3542.27">Allen McCallie</span> <span class="timestamp" data-time="3542.27">[ 59:02 ]</span>
+        <p>
+          <span class=speakertext data-time="3542.27">Depending on how long she's been away.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3544.35">Jack McCallie</span> <span class="timestamp" data-time="3544.35">[ 59:04 ]</span>
+        <p>
+          <span class=speakertext data-time="3544.35">The… the last series, and I… and I'm gonna try to get through this, there's… this is the… she's gone for a month. So, this is now March of 22. Daddy is born. Daddy is, 7 months old. She is in Williamsport for a month.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3565.02">Trying to keep an eye on the… I'll try to bounce around and just see if I can…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3573.65">And continue some of this,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3577.5">Came in time just to rush up from a hurry call from Ellen, who was throwing up on account of croup.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3582.98">I doctored her and went to bed at 10.30. A hurry call at 2 AM got me up with Vic Sav, and towels. Worked on Ellen until 2.45. Slept trouble slumber until 6 AM.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3595.35">Mary, prompt, and breakfast on time. Ellen was fed a grapefruit and kept at home. I ordered Mary to watch her and feed her one egg and toast for dinner. I will doctor her tonight. She seems to be in good shape this morning.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3610.37">The weather is absolutely perfect, the peach trees are full of blooms. Potts is plowing the front garden, and spring is here. That's Carl Potts' father, for those that knew Carl Potts.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3621.19">I am lonesome already, but I'm going to find a month longer than a year. He knows she's going to be gone for a month, and he finds out longer than a year. It ought to be against the law for a woman to visit without her husband. Everyone misses David Park.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3637.04">Mary the Cook says she misses him more than anyone else. He certainly is a dear, sweet baby, one that gives every promise of being a fine-spirited man.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3649.89">Ellen McCallie</span> <span class="timestamp" data-time="3649.89">[ 01:00:49 ]</span>
+        <p>
+          <span class=speakertext data-time="3649.89">Which he was!</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3656.8">Eleanor</span> <span class="timestamp" data-time="3656.8">[ 01:00:56 ]</span>
+        <p>
+          <span class=speakertext data-time="3656.8">I'm just imagining her parents.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3660.84">And she has gone… she's 26-7, she's gone to a southern town.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3669.43">To… to be with the preacher, and sure enough, she gets hooked up with this…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3675.7">older widow who has 5 little children. I bet her parents are freaking out.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3684.2">And wanted her to come home, straighten her up.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3687.85">But she goes… comes back to Chattanooga, she does marry him, she has… gets pregnant pretty soon.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3694.47">And they… I'm sure they're very…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3697.46">they're encouraging her to come back to Williamsport. It seems like she's gone back about 2 or 3 times now.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3703.49">Jack McCallie</span> <span class="timestamp" data-time="3703.49">[ 01:01:43 ]</span>
+        <p>
+          <span class=speakertext data-time="3703.49">Yeah, yeah, yeah. And continues to over years.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3706.8">Eleanor</span> <span class="timestamp" data-time="3706.8">[ 01:01:46 ]</span>
+        <p>
+          <span class=speakertext data-time="3706.8">Yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3708.61">Jack McCallie</span> <span class="timestamp" data-time="3708.61">[ 01:01:48 ]</span>
+        <p>
+          <span class=speakertext data-time="3708.61">We are getting along fine at home, another letter, but I realize more and more how much we owe you, and just how uncontrolled the children would be if it were not for you. Your reward is sure to come. Both children and I will love you more and more as the days go by.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3723.47">On my trip to Rome, as I sat in the train, I thought of our union, and of our growing love for each other, and I am resolved to more and more to make our union really worthwhile.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3739.07">As I… as I sit here by myself with all the children in bed, I miss you very much. I don't know what I would do…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3748.0">What I wouldn't do to have you here tonight. I'm afraid that I would eat you up. It is certainly going to be more and more lonesome for me as I begin to realize more and more what you really mean to me. I hope you really do miss me a little bit. Do you?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3764.92">Have you felt the inconvenience from stopping nursing David?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3768.27">My, wouldn't I love to see him now? All of us miss you and David, and will feel happier on your return.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3774.68">I think that I want you both in bed with me the first week, one arm around one, and the other arm around the other. Please write me that you really do miss me. See, these Macaulay men really can express themselves.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3790.31">Right.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3791.54">Talking about meals, the little left over, and the chickens go hungry. Tonight, however, we had the best steak that I've ever had, with rice, hot biscuits, and gravy. We lived high. Tomorrow, I'm going to have some sausage that Mr. Hamilton sent me from the hog Mr. Potts killed yesterday. Again, Carl Potts is,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3813.09">Father.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3814.87">May, March 22nd, or March 26, 1922.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3821.8">My dearest Kay and sweet little baby, words are not strong enough to express the yearning that is in my heart for you, too. I am afraid that I would eat you up if I were there in Williamsport. My love for the absent ones is at high tide today. Now, I highlight that because of the word yearning, which…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3841.89">was one of Uncle Spence's favorite words when he was preaching to us Macaulay students who weren't doing right, that he yearned for us.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3852.49">His father taught him how to yearn. So, the heritage of yearning. And I actually, at my 50th Macaulay reunion two months ago, I had somebody come up to me and said, I never knew what yearning meant, so…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3867.33">Allen McCallie</span> <span class="timestamp" data-time="3867.33">[ 01:04:27 ]</span>
+        <p>
+          <span class=speakertext data-time="3867.33">We kept a yarn chart on our road in the chapel, see how many yarns we could get in a week.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3873.5">David McCallie</span> <span class="timestamp" data-time="3873.5">[ 01:04:33 ]</span>
+        <p>
+          <span class=speakertext data-time="3873.5">Earn some years.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3878.0">Jack McCallie</span> <span class="timestamp" data-time="3878.0">[ 01:04:38 ]</span>
+        <p>
+          <span class=speakertext data-time="3878.0">He had been out for a trip down the river to go fishing. As I found everything… as I found everything out, after cleaning up, I took the children out for a ride. As Mary had to go to Dr. Bibb to have her boil lanced.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3890.24">She didn't go with us, and as Tom, Uncle T-Hook, had been late for his job several times, he was left at home, a heavy punishment, and one that hit him back.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3899.72">We picked up Spencer at Pine Breeze and went up Sidey Road, turned off, and went to the mill on Chickamauga Creek that I camped at 28 or more years ago. You will remember the place. In short, we just reversed a trip that I took you on once.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3914.82">We went up by Soddy Pike and came back to Hickson Pike. Spencer drove most of the way and enjoyed it immensely. We took him back to Pine Breeze and then carried the rest to one of the Market Street hot dog stands, Coney Island. They had the time of their lives. Mary came home in time to get supper for herself and Tom.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3933.61">Ellen McCallie</span> <span class="timestamp" data-time="3933.61">[ 01:05:33 ]</span>
+        <p>
+          <span class=speakertext data-time="3933.61">Okay, so grandfather there is 12, and he's doing the driving.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3938.97">Allen McCallie</span> <span class="timestamp" data-time="3938.97">[ 01:05:38 ]</span>
+        <p>
+          <span class=speakertext data-time="3938.97">That's what I hear.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3940.91">Jack McCallie</span> <span class="timestamp" data-time="3940.91">[ 01:05:40 ]</span>
+        <p>
+          <span class=speakertext data-time="3940.91">And had the time of his life.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3945.05">Joanie McCallie</span> <span class="timestamp" data-time="3945.05">[ 01:05:45 ]</span>
+        <p>
+          <span class=speakertext data-time="3945.05">Was that when he was at the sanatorium, Pine Reeves?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3948.39">Okay.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3949.07">Jack McCallie</span> <span class="timestamp" data-time="3949.07">[ 01:05:49 ]</span>
+        <p>
+          <span class=speakertext data-time="3949.07">Yeah, Pine Breeze is the, it's… Allen lives right next to it, currently. it was the TB Sanitarium in, outside of town, and, .</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3960.99">Joanie McCallie</span> <span class="timestamp" data-time="3960.99">[ 01:06:00 ]</span>
+        <p>
+          <span class=speakertext data-time="3960.99">How long was he there for, Jack, you know? Pardon? How long was he there for?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3965.96">Jack McCallie</span> <span class="timestamp" data-time="3965.96">[ 01:06:05 ]</span>
+        <p>
+          <span class=speakertext data-time="3965.96">I know nothing of that. Spencer, do you got any insight into…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3969.8">spencer mccallie</span> <span class="timestamp" data-time="3969.8">[ 01:06:09 ]</span>
+        <p>
+          <span class=speakertext data-time="3969.8">year or more, and I think it… I think it didn't always go well, because at one point, grandfather went over to see him, because no one else in the family would go, because they… he had relapsed, and they thought he was gonna die.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3981.86">Joanie McCallie</span> <span class="timestamp" data-time="3981.86">[ 01:06:21 ]</span>
+        <p>
+          <span class=speakertext data-time="3981.86">Hmm.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3982.78">spencer mccallie</span> <span class="timestamp" data-time="3982.78">[ 01:06:22 ]</span>
+        <p>
+          <span class=speakertext data-time="3982.78">And he said, so he went by himself. So that's when they sent him down to Corinth, Mississippi, and with… they were childless, the hazards, and he enjoyed that a lot, and they actually offered to give him a car if he would stay.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3998.48">Joanie McCallie</span> <span class="timestamp" data-time="3998.48">[ 01:06:38 ]</span>
+        <p>
+          <span class=speakertext data-time="3998.48">So he was dry… at the age of 10 or 11, he was driving all over that.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4002.92">spencer mccallie</span> <span class="timestamp" data-time="4002.92">[ 01:06:42 ]</span>
+        <p>
+          <span class=speakertext data-time="4002.92">place in Mississippi, because there weren't many cars.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4005.89">So he… we always… we asked him several times, suppose you had stayed there, what then? He said, oh, you… you… you can't know what…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4015.05">What would have happened?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4017.0">But Uncle Spence wasn't granddaddy! That large family.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4021.22">Ellen McCallie</span> <span class="timestamp" data-time="4021.22">[ 01:07:01 ]</span>
+        <p>
+          <span class=speakertext data-time="4021.22">Uncle Spence, wasn't granddaddy gone from the family about 3 years in total?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4026.39">spencer mccallie</span> <span class="timestamp" data-time="4026.39">[ 01:07:06 ]</span>
+        <p>
+          <span class=speakertext data-time="4026.39">It was a long time, yeah, I think.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4028.76">Close to that.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4030.77">David McCallie</span> <span class="timestamp" data-time="4030.77">[ 01:07:10 ]</span>
+        <p>
+          <span class=speakertext data-time="4030.77">Yeah, before we leave…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4032.3">Allen McCallie</span> <span class="timestamp" data-time="4032.3">[ 01:07:12 ]</span>
+        <p>
+          <span class=speakertext data-time="4032.3">those… when you talk about Dr. Bibb, and Dr. Bibb, who died in 1951, was… Dr. Bibb.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4043.01">Hattie Bibb's father, or.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4045.41">spencer mccallie</span> <span class="timestamp" data-time="4045.41">[ 01:07:25 ]</span>
+        <p>
+          <span class=speakertext data-time="4045.41">Brother.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4046.32">Jack McCallie</span> <span class="timestamp" data-time="4046.32">[ 01:07:26 ]</span>
+        <p>
+          <span class=speakertext data-time="4046.32">Brother.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4047.43">Yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4048.5">Allen McCallie</span> <span class="timestamp" data-time="4048.5">[ 01:07:28 ]</span>
+        <p>
+          <span class=speakertext data-time="4048.5">So, that was another…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4049.96">spencer mccallie</span> <span class="timestamp" data-time="4049.96">[ 01:07:29 ]</span>
+        <p>
+          <span class=speakertext data-time="4049.96">Oh.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4050.71">Allen McCallie</span> <span class="timestamp" data-time="4050.71">[ 01:07:30 ]</span>
+        <p>
+          <span class=speakertext data-time="4050.71">Another family member who was intimately involved with the founding of the school. He was school physician, okay.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4058.65">spencer mccallie</span> <span class="timestamp" data-time="4058.65">[ 01:07:38 ]</span>
+        <p>
+          <span class=speakertext data-time="4058.65">I misspoke on that, you're right. Yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4062.24">David McCallie</span> <span class="timestamp" data-time="4062.24">[ 01:07:42 ]</span>
+        <p>
+          <span class=speakertext data-time="4062.24">And just, before you go on, Jack, just speaking of doctors, I… you know, hearing about all these illnesses, I just looked it up, and</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4070.61">You know, penicillin wasn't discovered until 1928,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4074.63">So, all of these sicknesses we've been hearing about is before there were any antibiotics, and then the first treatment for TB, streptomycin, wasn't until 1944.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4084.58">Joanie McCallie</span> <span class="timestamp" data-time="4084.58">[ 01:08:04 ]</span>
+        <p>
+          <span class=speakertext data-time="4084.58">So…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4086.0">David McCallie</span> <span class="timestamp" data-time="4086.0">[ 01:08:06 ]</span>
+        <p>
+          <span class=speakertext data-time="4086.0">This is what we all did as humans before we had modern treatment.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4090.96">Jack McCallie</span> <span class="timestamp" data-time="4090.96">[ 01:08:10 ]</span>
+        <p>
+          <span class=speakertext data-time="4090.96">Wow.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4091.58">Ellen McCallie</span> <span class="timestamp" data-time="4091.58">[ 01:08:11 ]</span>
+        <p>
+          <span class=speakertext data-time="4091.58">So, Dave…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4092.28">David McCallie</span> <span class="timestamp" data-time="4092.28">[ 01:08:12 ]</span>
+        <p>
+          <span class=speakertext data-time="4092.28">I'm amazing.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4095.08">spencer mccallie</span> <span class="timestamp" data-time="4095.08">[ 01:08:15 ]</span>
+        <p>
+          <span class=speakertext data-time="4095.08">I wanna… I'm…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4096.92">Ellen McCallie</span> <span class="timestamp" data-time="4096.92">[ 01:08:16 ]</span>
+        <p>
+          <span class=speakertext data-time="4096.92">Go ahead.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4097.42">spencer mccallie</span> <span class="timestamp" data-time="4097.42">[ 01:08:17 ]</span>
+        <p>
+          <span class=speakertext data-time="4097.42">go back to what Carrie was saying, how they saw the past. Chattanooga had a yellow fever epidemic.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4103.89">Before the beginning of the 20th century, and</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4107.64">the railroads, I just looked it up, along the railroad lines, there had been cholera and all sorts of things that would spread from town to town between Nashville and Chattanooga.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4117.52">Great-grandmother, T.H. Shims, wife,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4123.56">Alice at 1, or C. Ellen, which.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4127.0">Joanie McCallie</span> <span class="timestamp" data-time="4127.0">[ 01:08:47 ]</span>
+        <p>
+          <span class=speakertext data-time="4127.0">Ellen.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4127.74">spencer mccallie</span> <span class="timestamp" data-time="4127.74">[ 01:08:47 ]</span>
+        <p>
+          <span class=speakertext data-time="4127.74">Ellen?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4129.18">Joanie McCallie</span> <span class="timestamp" data-time="4129.18">[ 01:08:49 ]</span>
+        <p>
+          <span class=speakertext data-time="4129.18">Dylan Jarnigan?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4130.189">spencer mccallie</span> <span class="timestamp" data-time="4130.189">[ 01:08:50 ]</span>
+        <p>
+          <span class=speakertext data-time="4130.189">Journey. Dylan Journey. She… She wrote to somebody, there'd been so many deaths.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4137.099">in the… and around Chattanooga, that she wondered if it was the end times.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4142.189">Joanie McCallie</span> <span class="timestamp" data-time="4142.189">[ 01:09:02 ]</span>
+        <p>
+          <span class=speakertext data-time="4142.189">Hmm.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4142.89">spencer mccallie</span> <span class="timestamp" data-time="4142.89">[ 01:09:02 ]</span>
+        <p>
+          <span class=speakertext data-time="4142.89">So…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4143.87">Joanie McCallie</span> <span class="timestamp" data-time="4143.87">[ 01:09:03 ]</span>
+        <p>
+          <span class=speakertext data-time="4143.87">Moved.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4144.51">spencer mccallie</span> <span class="timestamp" data-time="4144.51">[ 01:09:04 ]</span>
+        <p>
+          <span class=speakertext data-time="4144.51">The idea that you might lose half your children.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4148.76">David McCallie</span> <span class="timestamp" data-time="4148.76">[ 01:09:08 ]</span>
+        <p>
+          <span class=speakertext data-time="4148.76">Yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4149.55">spencer mccallie</span> <span class="timestamp" data-time="4149.55">[ 01:09:09 ]</span>
+        <p>
+          <span class=speakertext data-time="4149.55">not that rare of an idea. You had to hold that in the back of your… your head, that… that that might… that might happen.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4156.899">Jack McCallie</span> <span class="timestamp" data-time="4156.899">[ 01:09:16 ]</span>
+        <p>
+          <span class=speakertext data-time="4156.899">Wow.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4157.29">Ellen Cochrane</span> <span class="timestamp" data-time="4157.29">[ 01:09:17 ]</span>
+        <p>
+          <span class=speakertext data-time="4157.29">And she was losing almost half her children.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4160.26">spencer mccallie</span> <span class="timestamp" data-time="4160.26">[ 01:09:20 ]</span>
+        <p>
+          <span class=speakertext data-time="4160.26">She did. She lost 8.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4162.6">Ellen Cochrane</span> <span class="timestamp" data-time="4162.6">[ 01:09:22 ]</span>
+        <p>
+          <span class=speakertext data-time="4162.6">Yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4163.21">Ellen McCallie</span> <span class="timestamp" data-time="4163.21">[ 01:09:23 ]</span>
+        <p>
+          <span class=speakertext data-time="4163.21">I want to go back to what David, said.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4166.96">and I'm trying to look it up now, but my internet's slow,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4171.29">As I recall, penicillin was discovered in 29, but antibiotics writ large didn't become widely available until almost 1940.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4187.02">David McCallie</span> <span class="timestamp" data-time="4187.02">[ 01:09:47 ]</span>
+        <p>
+          <span class=speakertext data-time="4187.02">Right.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4188.7">Margaret Kolm</span> <span class="timestamp" data-time="4188.7">[ 01:09:48 ]</span>
+        <p>
+          <span class=speakertext data-time="4188.7">after World War II, and.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4191.77">David McCallie</span> <span class="timestamp" data-time="4191.77">[ 01:09:51 ]</span>
+        <p>
+          <span class=speakertext data-time="4191.77">Yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4192.14">Margaret Kolm</span> <span class="timestamp" data-time="4192.14">[ 01:09:52 ]</span>
+        <p>
+          <span class=speakertext data-time="4192.14">David, if I remember right, your father's saying when he started practicing, he didn't have access to it. Was that right?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4200.99">Jack McCallie</span> <span class="timestamp" data-time="4200.99">[ 01:10:00 ]</span>
+        <p>
+          <span class=speakertext data-time="4200.99">One of the first… one of the first people treated with penicillin in Chattanooga was our mother, Madden Lupton, who had spinal meningitis.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4211.68">And, got penicillin. Might have been viral meningitis, but they still gave her penicillin. But, so that was in the… she was born in 26, so that's in the 30s, so I think it was probably available in hospital settings and stuff like that. That's… I don't know that for sure, but I do know that… that story.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4232.25">I'm gonna keep moving, just because I don't want to run down. I got just a little more, and then we'll keep the conversation going. Just snippets,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4241.61">I hear Ellen's voice in distress.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4249.1">10 PM. I've just returned. Ellen was crying because Alice was not or was doing something that I've long since forgotten about. I had Mary give them their badge. You can just see the kids picking on each other.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4263.95">I must confess that I'm beginning to find your absence more and more irksome. I'm glad that it is only a few more weeks, for I don't believe that I could stand it much longer. I do, do miss you, my dear, ever so much. Even during the day when I'm at work, I find that I'm constantly thinking of you and of your return.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4281.89">I do wish that you would write more oftener and fuller. I would make… it would make it a lot… a little easier on me.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4289.3">Alice shows more love for you than any of the children and talks about you more. She really loves you deeply and is anxious to have you return. Of course, they all miss you and all want you back, but she seems to be the most outspoken.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4302.78">This letter should reach you on your birthday, and it carries with it the best wishes of the entire family for a happy day and many pleasant returns. May God spare you to do great work, and may He grant us the ability to appreciate you and uphold you in every way possible.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4317.77">I'm certain… I am certain that my appreciation is steadily growing, and that my love is getting stronger and deeper.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4326.64">I must rush this letter in order to get to see Spencer and take him out for his ride. It's a beautiful day with a glorious sun, and just warm enough to be thoroughly enjoyable. I am enclosing at $10 as a present from your husband. It is a birthday gift.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4340.29">He then gets mad at her for not writing and saying thank you, so he sends her a telegram and says, did you get that?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4348.67">telegram, did you receive my birthday present? Wire me.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4358.04">Allen McCallie</span> <span class="timestamp" data-time="4358.04">[ 01:12:38 ]</span>
+        <p>
+          <span class=speakertext data-time="4358.04">I feel better, I gave my wife $15.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4363.91">I was glad to receive your telegram, as it reassured me very much about the $10 sent as carelessly as I did send it.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4373.61">Jack McCallie</span> <span class="timestamp" data-time="4373.61">[ 01:12:53 ]</span>
+        <p>
+          <span class=speakertext data-time="4373.61">Gonna wrap it up here quickly, This is historical pertinence.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4379.63">From my perspective, Saturday, I'm going to the Lock and Dam in order to investigate our camping site for the school camp.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4388.02">I would not have taken this trip if it had… if you had come home, as nothing could have separated me from you. I would have gone to Ottawa Friday, which is where the train came in, sat as close as you as I could have gotten on the train, dined with you, slept with you Friday night, and remained by you all day Saturday. I am heart-sick over the delay.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4406.8">But when he does go tomorrow, I'm going to the Lock and Dam to investigate the campsite for the school. I want to locate a good place. Everything is okay by the time… if everything is okay, I hope you can go. Both Mrs. Newton and Mrs. Nunn were very anxious for you to go so they can go. The dates are May 10th through 13th.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4427.36">We will go to the lock and dam by auto and take a launch up there to the site the distance of about 4 miles. This is the reality that, yes, the family women are invited on camping trips, and so precedent was set way back in 1920.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4444.55">Allen McCallie</span> <span class="timestamp" data-time="4444.55">[ 01:14:04 ]</span>
+        <p>
+          <span class=speakertext data-time="4444.55">Now, what lock and dam are they speaking of?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4447.71">Jack McCallie</span> <span class="timestamp" data-time="4447.71">[ 01:14:07 ]</span>
+        <p>
+          <span class=speakertext data-time="4447.71">That's Hales Bar Dam, and 4 miles upstream is Mullins Cove.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4453.77">Allen McCallie</span> <span class="timestamp" data-time="4453.77">[ 01:14:13 ]</span>
+        <p>
+          <span class=speakertext data-time="4453.77">For those who know the local… Chickamauga Dam didn't exist.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4463.06">And Hale's Bar Dam was privately built.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4465.87">Jack McCallie</span> <span class="timestamp" data-time="4465.87">[ 01:14:25 ]</span>
+        <p>
+          <span class=speakertext data-time="4465.87">Spencer Jr, Uncle Spence, didn't know that you were not coming home, so he had got out in the woods and dug up a wild fern and has it in a pot for you. He was very much disappointed that you were not to come today. Alice, Tom, and Ellen were delighted over their postals. Write your eldest a letter. That's Mary.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4484.07">She will deeply appreciate it. She really misses you.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4487.41">I would us all to start brand new on your return to make this a happy Christian home. I want to do more than I've ever done before to aid and sustain you, and I ask of you to give your love and affection. I do crave your out-and-out love and comradeship, and I want to minute</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4506.06">by doing what I can to secure it.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4510.16">That's the end of the letters from him. I'll quickly do her letters.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4517.9">And then I'll make it sound better.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4520.4">The doctor said that this… so this is, Katharine Pierce McCallie writing, April 16th, 1922 to her… to Professor S.J. McCallie at the Macaulay School. The doctor said today that David is practically well, and though I still need to give him the treatment, you see no reason why I cannot travel with him.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4541.42">Our life has been blessed with the sweetest baby I ever saw. He is a sunbeam in the life of all those who know him. My people adore him, and I fear the poor little fellow will miss the love they have lavished upon him.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4554.57">Expectantly, Katharine. Last word. And now for interesting news, I'm leaving here Thursday… Tuesday afternoon and spending the night and Wednesday in Washington with relatives, thus breaking the trip for David. That will put me in Chattanooga Thursday evening. David wants to see his father, and so do I.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4570.85">You will have to be good to me for a whole year after this lengthy absence. And it signs off.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4576.72">This is the last until you see me. Will you be glad to have cold feet interrupt your sleep at 5.30am? Lovingly, Kay.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4587.57">Now… that… at Hyrox, it left a bad taste in everybody's mouth, that this was a challenge.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4596.46">relationship, and something I think the family writ large did not recognize and understand. I think this was all brand new information. It…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4605.21">Francis told me it needs a better ending, it needs the hallmark ending. So, with that in mind, Hastings, if you would pull up the, slides,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4631.09">If you could, pull up slide 11, excuse me, yeah, number 11,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4641.13">So this is… this is… Mother Kay and Daddy with, Alice and Ellen,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4655.77">the Happy Kids. You can go back one slide to, 10.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4662.89">There's Daddy as a… Kid, and even one more in slide 9.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4670.06">This is Daddy at 11 months.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4673.02">I'm not sure who the woman is, whether this is Nellie, or is this,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4679.62">Katharine Pierce's mother, don't know, but that's, daddy at 11 months.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4685.03">So… It, it's, it's a strained relationship.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4693.34">But it does have a Hallmark ending.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4700.7">We recognize that Mother Kay helped hold this family together through our generations and beyond. It's why we're still here today. She outlived her husband.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4714.9">In 1929, she went to the University of Tennessee at Knoxville and got her degree in library sciences, came back and became the librarian for the Macaulay School in 1931, which she remained until…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4730.43">6… in the 60s, I guess.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4733.29">In 1931, She also started teaching a Bible class.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4740.14">spencer mccallie</span> <span class="timestamp" data-time="4740.14">[ 01:19:00 ]</span>
+        <p>
+          <span class=speakertext data-time="4740.14">at Central Presbyterian Church. And…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4745.72">Jack McCallie</span> <span class="timestamp" data-time="4745.72">[ 01:19:05 ]</span>
+        <p>
+          <span class=speakertext data-time="4745.72">There, she was for 25 years, and in 1955,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4752.73">her church family celebrated her 25 years with a party, and we actually have a recording. They recorded this on a phonograph.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4765.64">her celebration of her 25 years of teaching Sunday school at Central Presbyterian Church. And the icing on the cake today is we can actually hear Mother Kay's voice as she accepts this, and if Hastings has figured out how to do it, listen up, and here she is.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4792.86">Hastings Hart</span> <span class="timestamp" data-time="4792.86">[ 01:19:52 ]</span>
+        <p>
+          <span class=speakertext data-time="4792.86">I, I, I have no speech to make. I'm simply overwhelmed. I didn't,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4798.6">Well, I just knew that when you have an anniversary, you deal in exaggerations, and…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4805.54">And, practical speeches, and, dream of anything like this, and I appreciate it from the bottom of my heart.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4815.32">It's something I'll never forget, you know, I keep this posted me all the rest of my life. It'll always be precious, isn't it? I do thank you very much.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4824.92">Jack McCallie</span> <span class="timestamp" data-time="4824.92">[ 01:20:24 ]</span>
+        <p>
+          <span class=speakertext data-time="4824.92">I'd love to see every one of you here, but I'd rather see you Sunday morning.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4849.64">This is crowd noise right now.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4851.5">Hastings Hart</span> <span class="timestamp" data-time="4851.5">[ 01:20:51 ]</span>
+        <p>
+          <span class=speakertext data-time="4851.5">Some people who have moved out of town, and if you care to come up and see it, I'd love for you to. I'll leave it up here.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4862.31">For the rest of the evening. I know it's not, but I should get something from the little pack drop, can't we?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4884.54">I didn't know it.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4893.29">A lot of things that could have been said… Oh, no.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4905.97">The rest is just general, crowd noise and…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4908.98">Jack McCallie</span> <span class="timestamp" data-time="4908.98">[ 01:21:48 ]</span>
+        <p>
+          <span class=speakertext data-time="4908.98">So what that was, is they had a, a takeoff on This Is Your Life, Katharine McCallie, and</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4916.71">It was sponsored by Luden's Cough Drops, because apparently she had an addiction to Ludin's Cough Drops and always had them on them, so they had all these Luden Cough Drops, they had a big poster with Luden's Cough Drops there, and daddy was there, Uncle Park was there, Uncle Spence was there, some of her family showed up, and it was actually featured in the paper, but we have a recording of it, but</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4940.73">So, that… that's after they have</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4943.3">razzed her and sort of surprised her for this, all tape-recorded, and she gets up to make her acceptance and then starts laughing about Ludin's cough drop. So, I don't remember her voice as being so southern as that sounded, but, anyway, 1955, celebrated for all that you heard that was</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4965.74">Trouble and tragedy and strain and work.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4969.42">It was a great ending, and .</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4973.66">Allen McCallie</span> <span class="timestamp" data-time="4973.66">[ 01:22:53 ]</span>
+        <p>
+          <span class=speakertext data-time="4973.66">What was the date of that… of that event?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4976.77">Jack McCallie</span> <span class="timestamp" data-time="4976.77">[ 01:22:56 ]</span>
+        <p>
+          <span class=speakertext data-time="4976.77">November 1955.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4980.2">Hastings Hart</span> <span class="timestamp" data-time="4980.2">[ 01:23:00 ]</span>
+        <p>
+          <span class=speakertext data-time="4980.2">Actually, Jack, that… well, so at the very end, C. Gammon, the minister, comes… sounds like a radio announcer, just saying, you know, this was the 25th anniversary party. It's… he said it is Monday evening, February the 7th, 1955.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4995.95">Jack McCallie</span> <span class="timestamp" data-time="4995.95">[ 01:23:15 ]</span>
+        <p>
+          <span class=speakertext data-time="4995.95">Okay, February of 55, so…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4998.75">Allen McCallie</span> <span class="timestamp" data-time="4998.75">[ 01:23:18 ]</span>
+        <p>
+          <span class=speakertext data-time="4998.75">Two weeks before I was born, two weeks before my birthday.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5003.44">Ellen Cochrane</span> <span class="timestamp" data-time="5003.44">[ 01:23:23 ]</span>
+        <p>
+          <span class=speakertext data-time="5003.44">I would just like to throw something in there.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5006.78">When, when,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5009.01">grandmother, Katharine, wrote the letter saying that, you know, her baby was just gonna really miss all the love and attention he was getting at home.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5018.55">I always heard from Mother that</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5021.38">that young David, your dad, when he came home.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5025.53">he was never spoiled. He was not a spoiled brat, and that all of the kids adored him, because he just… he was just so, he was just fun and open and loving, and… but… but he wasn't… he wasn't spoiled, and he wasn't, you know, kept separate, so he was just…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5043.89">Extremely well loved by his siblings, early on.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5049.34">And that continued, actually.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5053.34">Jack McCallie</span> <span class="timestamp" data-time="5053.34">[ 01:24:13 ]</span>
+        <p>
+          <span class=speakertext data-time="5053.34">Spencer.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5054.53">spencer mccallie</span> <span class="timestamp" data-time="5054.53">[ 01:24:14 ]</span>
+        <p>
+          <span class=speakertext data-time="5054.53">Just to carry on with her acceptance of everybody as her family.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5059.11">We were all her grandchildren. We were not step-grandchildren. We were all her grandchildren.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5066.43">And I remember at the very last,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5071.16">It was 1965, and she wasn't going to last a long time, and</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5077.23">She wanted to go home to Williamsport.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5079.6">So the family arranged to take care of my Sarah and my three children.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5085.18">And we were going to drive her to Williamsport. Sarah and I, it was off time at school.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5091.02">And we were gonna take her up in her old Buick.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5094.42">to Williamsport.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5096.07">Jack McCallie</span> <span class="timestamp" data-time="5096.07">[ 01:24:56 ]</span>
+        <p>
+          <span class=speakertext data-time="5096.07">And your father called, said the trip is off.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5098.99">spencer mccallie</span> <span class="timestamp" data-time="5098.99">[ 01:24:58 ]</span>
+        <p>
+          <span class=speakertext data-time="5098.99">She's… she's declining. And so I went a couple nights later, Alright.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5105.83">to the hospital.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5107.72">And, she said… Oh, you've come to say goodbye to your old grandmother.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5115.13">And that was true.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5116.66">And she died. She died that night.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5120.09">But she knew she was gone.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5122.82">And it didn't seem to scare her.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5125.58">And I was a grandson, not a step-grandson. I was a grandson.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5131.05">Anyway…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5132.28">Jack McCallie</span> <span class="timestamp" data-time="5132.28">[ 01:25:32 ]</span>
+        <p>
+          <span class=speakertext data-time="5132.28">I believe people are there.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5134.8">Allen McCallie</span> <span class="timestamp" data-time="5134.8">[ 01:25:34 ]</span>
+        <p>
+          <span class=speakertext data-time="5134.8">We rode around in that big green Buick.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5137.79">On regular occasions, she would pick us up and take us to the Duck Pond, which is still there at Red Bank.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5144.93">And, we grabbed… I think we deliberately didn't eat our sandwiches, so we would have bread for the ducks, and go over there, and then we would go to Finn's Restaurant, or the Wimberley Inn on Brainerd Road.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5159.69">Jack McCallie</span> <span class="timestamp" data-time="5159.69">[ 01:25:59 ]</span>
+        <p>
+          <span class=speakertext data-time="5159.69">And.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5160.97">Allen McCallie</span> <span class="timestamp" data-time="5160.97">[ 01:26:00 ]</span>
+        <p>
+          <span class=speakertext data-time="5160.97">And I would not have recognized that recording as the voice that I remember.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5166.61">David McCallie</span> <span class="timestamp" data-time="5166.61">[ 01:26:06 ]</span>
+        <p>
+          <span class=speakertext data-time="5166.61">Hmm.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5167.46">Jack McCallie</span> <span class="timestamp" data-time="5167.46">[ 01:26:07 ]</span>
+        <p>
+          <span class=speakertext data-time="5167.46">The, interesting thing, Spencer and I checked with Alan beforehand.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5173.43">Alan and David and Freddie and I referred to her as grandmother.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5177.99">And I remember when Elec, who was Freddie's best friend growing up, referred to her as Mother Kay.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5186.61">it was, wait a minute, who are we talking about? So, she was grandmother to me, and Alan and David. She was Mother Kay to everybody else, and just an interesting, I never referred to her as Mother Kay until</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5202.46">the bigger family gets together, so, am I true in saying that, David? Was that your recollection? Would you say that?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5208.86">spencer mccallie</span> <span class="timestamp" data-time="5208.86">[ 01:26:48 ]</span>
+        <p>
+          <span class=speakertext data-time="5208.86">I don't remember Mother K. I don't remember saying that.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5212.19">Jack McCallie</span> <span class="timestamp" data-time="5212.19">[ 01:26:52 ]</span>
+        <p>
+          <span class=speakertext data-time="5212.19">Huh, huh, interesting.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5214.18">I don't know where… when that came out.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5215.91">Tom McCallie</span> <span class="timestamp" data-time="5215.91">[ 01:26:55 ]</span>
+        <p>
+          <span class=speakertext data-time="5215.91">That was true in our family. We used Mother Kay, on that. I just want to,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5222.06">support Spencer's comments. We never felt that she was anything but a grandmother, to us, and she was always loving and kind.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5233.1">She would speak to us when we were at Macaulay, things like that. Anyway, she was a delightful person to have in our family, and in many ways, I think, kept the family together.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5247.45">Jack McCallie</span> <span class="timestamp" data-time="5247.45">[ 01:27:27 ]</span>
+        <p>
+          <span class=speakertext data-time="5247.45">Well, if, if you invite me back next year, I'll, maybe have gone through the rest of these letters and tell you about them, but.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5256.82">Ellen McCallie</span> <span class="timestamp" data-time="5256.82">[ 01:27:36 ]</span>
+        <p>
+          <span class=speakertext data-time="5256.82">Can I ask a question? Oh, sorry, Eleanor, please.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5259.9">Eleanor</span> <span class="timestamp" data-time="5259.9">[ 01:27:39 ]</span>
+        <p>
+          <span class=speakertext data-time="5259.9">I was gonna call on you, so…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5262.64">Ellen McCallie</span> <span class="timestamp" data-time="5262.64">[ 01:27:42 ]</span>
+        <p>
+          <span class=speakertext data-time="5262.64">I want to hear… so, you know, what I remember so much is Grant… my grandmother, Becky McCallie, and Aunt Madden.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5271.78">both just gushing over how Mother K kept the family together, and</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5279.58">really made it… I mean, just made the family…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5283.23">A unit, even as more generations and more kids, etc.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5288.94">I am curious, though, Uncle Spencer, what… grandmother… grandmother never said anything to me about, Mother Kay not understanding men, and so I'm curious if you have any other insight, because we're digging into their personal life, we might as well dig in a little bit more.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5311.99">spencer mccallie</span> <span class="timestamp" data-time="5311.99">[ 01:28:31 ]</span>
+        <p>
+          <span class=speakertext data-time="5311.99">I just know that they talked a lot over coffee in the early days when mother was a young</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5320.12">wife living in Founder's home, and grandmother was the… and I do call her grandma, not… not Mother Kay. Grandmother was the school librarian, and during the military period would come over and have coffee.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5333.23">with Mother, and that's when… Mother got an insight into the background of</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5340.8">grandmother and her, education had been limited, really.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5348.45">Moody Bible Institute was hardly a cosmopolitan institution. It was a little Bible school.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5356.83">And there was a lot Grandmother did not know.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5361.08">And my mother had been… gotten her master's degree in English literature at Duke, and had been around a lot more.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5369.1">Even though Grandmother Kay… I may have called her Grandmother Kay. Even though she was older, she was less sophisticated, really.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5378.95">And she would talk about, what it was like to come. I think she shared with my mother</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5386.94">How hard it had been.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5389.29">When she came in, because Mother would say, that young woman.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5393.62">Came in with an older husband who already had 5 children.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5399.29">Unbelievable. I don't know how she did that, and I… Mother would talk to me a lot about that.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5406.04">I was the oldest one, and grandmother… Kay was really…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5411.46">good to me. I was the oldest one, and I…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5415.91">Robert Ware is actually the first in our generation.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5419.95">But he wasn't there, and so I was the oldest one, and I bore the name of her</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5425.05">Of her husband.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5427.23">And I was the most lovable.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5431.16">Allen McCallie</span> <span class="timestamp" data-time="5431.16">[ 01:30:31 ]</span>
+        <p>
+          <span class=speakertext data-time="5431.16">Whatever. Mother talked to me a lot.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5436.74">Jack McCallie</span> <span class="timestamp" data-time="5436.74">[ 01:30:36 ]</span>
+        <p>
+          <span class=speakertext data-time="5436.74">She signed her letters K, K-A-Y. I was never quite sure about that, but when she signs that last letter to her husband, it is, it is K. And,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5449.76">the struggles and the reward that she got, Spencer says, I pray that you will be rewarded, you will get your reward in the future. I think she did. And…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5462.74">There are four… For offspring name for her, are there any other family names more than</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5472.14">Katharine, I think I know the answer, as I see two Toms here. But in terms of, are there any more… there… somebody can figure that one out and let it be known, but, in terms of, there were four, there were four…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5488.74">women named after Mother Kay, is that the most numbers of</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5494.15">offspring that have been, passed on down the road. Anybody got any thoughts? I don't know.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5500.52">David McCallie</span> <span class="timestamp" data-time="5500.52">[ 01:31:40 ]</span>
+        <p>
+          <span class=speakertext data-time="5500.52">Apparently no.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5501.14">Kari McCallie</span> <span class="timestamp" data-time="5501.14">[ 01:31:41 ]</span>
+        <p>
+          <span class=speakertext data-time="5501.14">So, yeah, so there's Kathy, myself, Katie.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5507.53">Kay Hart, and Katharine Louise, so Louise.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5511.2">Jack McCallie</span> <span class="timestamp" data-time="5511.2">[ 01:31:51 ]</span>
+        <p>
+          <span class=speakertext data-time="5511.2">Oh, I left out, Katie, I'm sorry.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5512.96">Kari McCallie</span> <span class="timestamp" data-time="5512.96">[ 01:31:52 ]</span>
+        <p>
+          <span class=speakertext data-time="5512.96">Yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5513.39">Jack McCallie</span> <span class="timestamp" data-time="5513.39">[ 01:31:53 ]</span>
+        <p>
+          <span class=speakertext data-time="5513.39">You're right, you're right.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5513.97">Kari McCallie</span> <span class="timestamp" data-time="5513.97">[ 01:31:53 ]</span>
+        <p>
+          <span class=speakertext data-time="5513.97">I mean, I think Eleanor can let us know, but Katie is also a Katharine. So that's, what, 1, 2, 3…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5522.74">45.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5524.65">And if I remember correctly, when I… when I counted, I also counted Hastings, wife, Katharine, as a Katharine, because she was, so that was our most common first name.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5539.42">But I'm not sure if you don't… if you don't count direct descendants,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5546.09">Spencer might also be up there.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5549.83">And depending on how back… how far back you go, Thomas.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5553.13">So, I will… I will count again.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5557.5">Jack McCallie</span> <span class="timestamp" data-time="5557.5">[ 01:32:37 ]</span>
+        <p>
+          <span class=speakertext data-time="5557.5">He was… she was… she was honored, for the struggles that we… that I have put you through in terms of reading these and listening to this a second time. It was a… it was a life well lived and… and well honored, and… and I think we're all here because of it.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5574.52">Eleanor</span> <span class="timestamp" data-time="5574.52">[ 01:32:54 ]</span>
+        <p>
+          <span class=speakertext data-time="5574.52">Well, I think that sounds like a great</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5577.17">ending. So, and it is time. So, Jack, I really, really want to thank you. You put that together so well. Yeah, let's all give them a hand.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5589.97">Ellen Cochrane</span> <span class="timestamp" data-time="5589.97">[ 01:33:09 ]</span>
+        <p>
+          <span class=speakertext data-time="5589.97">putting us through anything. That was fabulous.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5593.07">I, I agree.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5593.94">William Pressly</span> <span class="timestamp" data-time="5593.94">[ 01:33:13 ]</span>
+        <p>
+          <span class=speakertext data-time="5593.94">Wonderful.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5594.68">Ellen Cochrane</span> <span class="timestamp" data-time="5594.68">[ 01:33:14 ]</span>
+        <p>
+          <span class=speakertext data-time="5594.68">Let's just…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5595.26">William Pressly</span> <span class="timestamp" data-time="5595.26">[ 01:33:15 ]</span>
+        <p>
+          <span class=speakertext data-time="5595.26">Jack, thank you so much. Sorry we checked out in the middle of the computer downstairs went conk. We're now about to buy something. I'll get it fixed, Eleanor.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5606.86">Eleanor</span> <span class="timestamp" data-time="5606.86">[ 01:33:26 ]</span>
+        <p>
+          <span class=speakertext data-time="5606.86">We can all watch it on, again, on the website, and we can also hear it, and we can get a written… we'll have a written, AI, script, and then we'll have a written summary, too. So all that's fantastic.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5623.23">Jack McCallie</span> <span class="timestamp" data-time="5623.23">[ 01:33:43 ]</span>
+        <p>
+          <span class=speakertext data-time="5623.23">Thank you, Hastings. Thank you, Hastings. Yeah, absolutely.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5626.12">Ellen Cochrane</span> <span class="timestamp" data-time="5626.12">[ 01:33:46 ]</span>
+        <p>
+          <span class=speakertext data-time="5626.12">Lee.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="5627.25">Eleanor</span> <span class="timestamp" data-time="5627.25">[ 01:33:47 ]</span>
+        <p>
+          <span class=speakertext data-time="5627.25">And we welcome you back next time, so you'll see how all the.</span>
+        </p>
+      </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript to enable clickable transcript timestamps -->
+  <script>
+
+    // Video error handling and debugging
+    const video = document.getElementById('zoomVideo');
+    const videoError = document.getElementById('video-error');
+    
+    video.addEventListener('error', function(e) {
+      console.error('Video error:', e);
+      if (video.error) {
+        console.error('Error code:', video.error.code);
+        console.error('Error message:', video.error.message);
+        // Show friendly error message
+        videoError.style.display = 'block';
+      }
+    });
+    
+    video.addEventListener('loadstart', function() {
+      console.log('Video loading started');
+      videoError.style.display = 'none';
+    });
+    
+    video.addEventListener('canplay', function() {
+      console.log('Video can play');
+      videoError.style.display = 'none';
+    });
+    
+    video.addEventListener('loadedmetadata', function() {
+      console.log('Video metadata loaded');
+    });
+
+    // Search functionality
+    let searchMatches = [];
+    let currentMatchIndex = -1;
+    const searchInput = document.getElementById('search-input');
+    const prevButton = document.getElementById('prev-button');
+    const nextButton = document.getElementById('next-button');
+    const searchInfo = document.getElementById('search-info');
+    const transcriptDiv = document.querySelector('.transcript');
+
+    function clearHighlights() {
+      const highlights = transcriptDiv.querySelectorAll('.search-highlight');
+      highlights.forEach(highlight => {
+        const parent = highlight.parentNode;
+        parent.replaceChild(document.createTextNode(highlight.textContent), highlight);
+        parent.normalize();
+      });
+      searchMatches = [];
+      currentMatchIndex = -1;
+    }
+
+    function highlightMatches(searchTerm) {
+      if (!searchTerm || searchTerm.length < 2) {
+        clearHighlights();
+        searchInfo.textContent = '';
+        prevButton.disabled = true;
+        nextButton.disabled = true;
+        return;
+      }
+
+      clearHighlights();
+      const speakerTextElements = transcriptDiv.querySelectorAll('.speakertext');
+      const searchRegex = new RegExp(searchTerm.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&'), 'gi');
+
+      speakerTextElements.forEach(element => {
+        const originalText = element.textContent;
+        const matches = [...originalText.matchAll(searchRegex)];
+        
+        if (matches.length > 0) {
+          let lastIndex = 0;
+          const fragment = document.createDocumentFragment();
+          
+          matches.forEach(match => {
+            // Add text before match
+            if (match.index > lastIndex) {
+              fragment.appendChild(document.createTextNode(originalText.substring(lastIndex, match.index)));
+            }
+            // Add highlighted match
+            const mark = document.createElement('span');
+            mark.className = 'search-highlight';
+            mark.textContent = match[0];
+            fragment.appendChild(mark);
+            searchMatches.push(mark);
+            lastIndex = match.index + match[0].length;
+          });
+          
+          // Add remaining text
+          if (lastIndex < originalText.length) {
+            fragment.appendChild(document.createTextNode(originalText.substring(lastIndex)));
+          }
+          
+          element.textContent = '';
+          element.appendChild(fragment);
+        }
+      });
+
+      if (searchMatches.length > 0) {
+        currentMatchIndex = 0;
+        updateCurrentMatch();
+        prevButton.disabled = false;
+        nextButton.disabled = false;
+      } else {
+        searchInfo.textContent = 'No matches';
+        prevButton.disabled = true;
+        nextButton.disabled = true;
+      }
+    }
+
+    function updateCurrentMatch() {
+      searchMatches.forEach((match, index) => {
+        if (index === currentMatchIndex) {
+          match.classList.add('current');
+          match.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          match.classList.remove('current');
+        }
+      });
+      searchInfo.textContent = `${currentMatchIndex + 1} of ${searchMatches.length}`;
+    }
+
+    searchInput.addEventListener('input', (e) => {
+      highlightMatches(e.target.value);
+    });
+
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        if (e.shiftKey) {
+          prevMatch();
+        } else {
+          nextMatch();
+        }
+      }
+    });
+
+    function nextMatch() {
+      if (searchMatches.length > 0) {
+        currentMatchIndex = (currentMatchIndex + 1) % searchMatches.length;
+        updateCurrentMatch();
+      }
+    }
+
+    function prevMatch() {
+      if (searchMatches.length > 0) {
+        currentMatchIndex = (currentMatchIndex - 1 + searchMatches.length) % searchMatches.length;
+        updateCurrentMatch();
+      }
+    }
+
+    nextButton.addEventListener('click', nextMatch);
+    prevButton.addEventListener('click', prevMatch);
+
+    // Draggable separator functionality
+    const separator = document.getElementById('separator');
+    const videoContainer = document.getElementById('video-container');
+    const container = document.querySelector('.container');
+
+    let isDragging = false;
+
+    function startDrag(e) {
+      isDragging = true;
+      // Capture pointer for all pointer types (mouse, touch, pen)
+      if (e.pointerId !== undefined) {
+        separator.setPointerCapture(e.pointerId);
+      }
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    function onDrag(e) {
+      if (!isDragging) return;
+      
+      let clientY;
+      // Handle both pointer and touch events
+      if (e.clientY !== undefined) {
+        clientY = e.clientY;
+      } else if (e.touches && e.touches.length > 0) {
+        clientY = e.touches[0].clientY;
+      } else {
+        return;
+      }
+      
+      const containerTop = container.getBoundingClientRect().top;
+      let newHeight = clientY - containerTop;
+      const minHeight = 100;
+      const maxHeight = window.innerHeight - 100;
+      newHeight = Math.max(minHeight, Math.min(maxHeight, newHeight));
+      videoContainer.style.height = newHeight + 'px';
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    function endDrag(e) {
+      if (!isDragging) return;
+      isDragging = false;
+      if (e.pointerId !== undefined) {
+        separator.releasePointerCapture(e.pointerId);
+      }
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    // Use pointer events (handles mouse, touch, and pen)
+    separator.addEventListener('pointerdown', startDrag);
+    separator.addEventListener('pointermove', onDrag);
+    separator.addEventListener('pointerup', endDrag);
+    separator.addEventListener('pointercancel', endDrag);
+    
+    // Global handlers for when pointer moves outside separator
+    window.addEventListener('pointermove', onDrag);
+    window.addEventListener('pointerup', endDrag);
+
+        
+    // for timestamp clicks and touches
+    let touchStartY = 0;
+    let touchStartX = 0;
+    const scrollThreshold = 10; // pixels of movement to consider it a scroll
+    
+    function handleTouchStart(e) {
+        touchStartY = e.touches[0].clientY;
+        touchStartX = e.touches[0].clientX;
+    }
+    
+    function handleTouchEnd(e) {
+        const touchEndY = e.changedTouches[0].clientY;
+        const touchEndX = e.changedTouches[0].clientX;
+        const deltaY = Math.abs(touchEndY - touchStartY);
+        const deltaX = Math.abs(touchEndX - touchStartX);
+        
+        // Only trigger if it's a tap (minimal movement), not a scroll
+        if (deltaY < scrollThreshold && deltaX < scrollThreshold) {
+            e.preventDefault();
+            const time = parseFloat(this.getAttribute('data-time'));
+            const video = document.getElementById('zoomVideo');
+            video.currentTime = time;
+            
+            // play() returns a promise, handle it properly for iOS
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(error => {
+                // Auto-play was prevented, user needs to click play button
+                console.log('Playback prevented:', error);
+              });
+            }
+        }
+    }
+    
+    function handleClick(e) {
+        const time = parseFloat(this.getAttribute('data-time'));
+        const video = document.getElementById('zoomVideo');
+        video.currentTime = time;
+        
+        // play() returns a promise, handle it properly for iOS
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            // Auto-play was prevented
+            console.log('Playback prevented:', error);
+          });
+        }
+    }
+
+    document.querySelectorAll('.timestamp, .speakername, .speakertext').forEach(function(element) {
+        element.addEventListener('click', handleClick);
+        element.addEventListener('touchstart', handleTouchStart, { passive: true });
+        element.addEventListener('touchend', handleTouchEnd);
+    });
+
+  </script>
+</body>
+</html>

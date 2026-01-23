@@ -325,6 +325,21 @@ def generate_html(cues, video_url):
       background-color: orange;
       color: black;
     }}
+    
+    /* Video error message */
+    #video-error {{
+      display: none;
+      background-color: rgba(255, 100, 100, 0.2);
+      border: 2px solid #ff6666;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px;
+      color: #ffcccc;
+    }}
+    #video-error h3 {{
+      margin-top: 0;
+      color: #ff9999;
+    }}
 
   </style>
 </head>
@@ -332,10 +347,22 @@ def generate_html(cues, video_url):
   <div class="container">
     <!-- Video container -->
     <div id="video-container">
-      <video id="zoomVideo" controls>
+      <video id="zoomVideo" controls playsinline preload="metadata">
+        <source src="{video_url}" type="video/mp4; codecs=hvc1" />
         <source src="{video_url}" type="video/mp4" />
-        Your browser does not support the video tag.
+        <source src="{video_url}" />
+        Your browser does not support the video tag or this video format.
       </video>
+      <div id="video-error">
+        <h3>⚠️ Video Loading Error</h3>
+        <p><strong>The video failed to load or play.</strong></p>
+        <p>On iOS/Safari, this is often caused by H.265/HEVC encoding, which has limited browser support.</p>
+        <p><strong>Solution:</strong> Re-encode the video to H.264 format using:</p>
+        <code style="display: block; background: #000; padding: 10px; margin: 10px 0; border-radius: 4px;">
+          ffmpeg -i input.mp4 -c:v libx264 -preset slow -crf 23 -c:a aac output.mp4
+        </code>
+        <p style="font-size: 0.9em; margin-top: 15px;">H.264 is universally supported across all browsers and devices.</p>
+      </div>
     </div>
 
     <!-- Draggable separator -->
@@ -359,6 +386,34 @@ def generate_html(cues, video_url):
 
   <!-- JavaScript to enable clickable transcript timestamps -->
   <script>
+
+    // Video error handling and debugging
+    const video = document.getElementById('zoomVideo');
+    const videoError = document.getElementById('video-error');
+    
+    video.addEventListener('error', function(e) {{
+      console.error('Video error:', e);
+      if (video.error) {{
+        console.error('Error code:', video.error.code);
+        console.error('Error message:', video.error.message);
+        // Show friendly error message
+        videoError.style.display = 'block';
+      }}
+    }});
+    
+    video.addEventListener('loadstart', function() {{
+      console.log('Video loading started');
+      videoError.style.display = 'none';
+    }});
+    
+    video.addEventListener('canplay', function() {{
+      console.log('Video can play');
+      videoError.style.display = 'none';
+    }});
+    
+    video.addEventListener('loadedmetadata', function() {{
+      console.log('Video metadata loaded');
+    }});
 
     // Search functionality
     let searchMatches = [];
@@ -487,20 +542,21 @@ def generate_html(cues, video_url):
 
     let isDragging = false;
 
-    // Unified handler for starting a drag.
     function startDrag(e) {{
       isDragging = true;
-      // If pointer events are supported, capture the pointer.
-      if (e.pointerId) {{
+      // Capture pointer for all pointer types (mouse, touch, pen)
+      if (e.pointerId !== undefined) {{
         separator.setPointerCapture(e.pointerId);
       }}
       e.preventDefault();
+      e.stopPropagation();
     }}
 
-    // Unified handler for moving during a drag.
     function onDrag(e) {{
       if (!isDragging) return;
+      
       let clientY;
+      // Handle both pointer and touch events
       if (e.clientY !== undefined) {{
         clientY = e.clientY;
       }} else if (e.touches && e.touches.length > 0) {{
@@ -508,49 +564,91 @@ def generate_html(cues, video_url):
       }} else {{
         return;
       }}
-      let containerTop = container.getBoundingClientRect().top;
+      
+      const containerTop = container.getBoundingClientRect().top;
       let newHeight = clientY - containerTop;
       const minHeight = 100;
       const maxHeight = window.innerHeight - 100;
       newHeight = Math.max(minHeight, Math.min(maxHeight, newHeight));
       videoContainer.style.height = newHeight + 'px';
       e.preventDefault();
+      e.stopPropagation();
     }}
 
-    // Unified handler for ending a drag.
     function endDrag(e) {{
+      if (!isDragging) return;
       isDragging = false;
-      if (e.pointerId) {{
+      if (e.pointerId !== undefined) {{
         separator.releasePointerCapture(e.pointerId);
       }}
       e.preventDefault();
+      e.stopPropagation();
     }}
 
-    // Pointer events (for most desktop and modern browsers)
+    // Use pointer events (handles mouse, touch, and pen)
     separator.addEventListener('pointerdown', startDrag);
+    separator.addEventListener('pointermove', onDrag);
+    separator.addEventListener('pointerup', endDrag);
+    separator.addEventListener('pointercancel', endDrag);
+    
+    // Global handlers for when pointer moves outside separator
     window.addEventListener('pointermove', onDrag);
     window.addEventListener('pointerup', endDrag);
 
-    // Touch events as a fallback (make sure to set passive: false)
-    separator.addEventListener('touchstart', startDrag, {{ passive: false }});
-    window.addEventListener('touchmove', onDrag, {{ passive: false }});
-    window.addEventListener('touchend', endDrag, {{ passive: false }});
-
         
     // for timestamp clicks and touches
-    function handleTimestampEvent(e) {{
-        // Prevent any default touch behavior
-        e.preventDefault();
+    let touchStartY = 0;
+    let touchStartX = 0;
+    const scrollThreshold = 10; // pixels of movement to consider it a scroll
+    
+    function handleTouchStart(e) {{
+        touchStartY = e.touches[0].clientY;
+        touchStartX = e.touches[0].clientX;
+    }}
+    
+    function handleTouchEnd(e) {{
+        const touchEndY = e.changedTouches[0].clientY;
+        const touchEndX = e.changedTouches[0].clientX;
+        const deltaY = Math.abs(touchEndY - touchStartY);
+        const deltaX = Math.abs(touchEndX - touchStartX);
+        
+        // Only trigger if it's a tap (minimal movement), not a scroll
+        if (deltaY < scrollThreshold && deltaX < scrollThreshold) {{
+            e.preventDefault();
+            const time = parseFloat(this.getAttribute('data-time'));
+            const video = document.getElementById('zoomVideo');
+            video.currentTime = time;
+            
+            // play() returns a promise, handle it properly for iOS
+            const playPromise = video.play();
+            if (playPromise !== undefined) {{
+              playPromise.catch(error => {{
+                // Auto-play was prevented, user needs to click play button
+                console.log('Playback prevented:', error);
+              }});
+            }}
+        }}
+    }}
+    
+    function handleClick(e) {{
         const time = parseFloat(this.getAttribute('data-time'));
         const video = document.getElementById('zoomVideo');
         video.currentTime = time;
-        video.play();
+        
+        // play() returns a promise, handle it properly for iOS
+        const playPromise = video.play();
+        if (playPromise !== undefined) {{
+          playPromise.catch(error => {{
+            // Auto-play was prevented
+            console.log('Playback prevented:', error);
+          }});
+        }}
     }}
 
     document.querySelectorAll('.timestamp, .speakername, .speakertext').forEach(function(element) {{
-        element.addEventListener('click', handleTimestampEvent);
-        // Adding touchstart ensures immediate response on touch devices.
-        element.addEventListener('touchstart', handleTimestampEvent, {{ passive: false }});
+        element.addEventListener('click', handleClick);
+        element.addEventListener('touchstart', handleTouchStart, {{ passive: true }});
+        element.addEventListener('touchend', handleTouchEnd);
     }});
 
   </script>

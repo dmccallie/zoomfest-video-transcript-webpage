@@ -16,6 +16,13 @@
 #   "/mnt/d/Dropbox/McCallieFamilyStories/Zoomfest-18Jan2026/GMT20260118-190759_Recording.transcript.vtt" \
 #   test.html
 
+# using CloudFront as CDN for S3-hosted video:
+# the cdn distribution is: din7a2mculfky.cloudfront.net 
+# which is is pointing to the S3 bucket: mccallie-family-stories
+# so final video URL is like:
+# https://din7a2mculfky.cloudfront.net/zoomvideos/Zoomfest-JBM-SJM-KPM-18Jan2026.mp4
+
+
 import re
 import argparse
 

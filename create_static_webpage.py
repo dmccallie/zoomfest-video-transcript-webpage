@@ -10,18 +10,34 @@
 # then take the output HTML file and open it in a web browser.
 # then copy to an S3 bucket or similar for sharing.
 
-# example usage:
-# python create_static_webpage.py --video_url \
-#   https://mccallie-family-stories.s3.us-east-1.amazonaws.com/zoomvideos/Zoomfest-JBM-SJM-KPM-18Jan2026.mp4 \
-#   "/mnt/d/Dropbox/McCallieFamilyStories/Zoomfest-18Jan2026/GMT20260118-190759_Recording.transcript.vtt" \
-#   test.html
-
 # using CloudFront as CDN for S3-hosted video:
 # the cdn distribution is: din7a2mculfky.cloudfront.net 
 # which is is pointing to the S3 bucket: mccallie-family-stories
-# so final video URL is like:
-# https://din7a2mculfky.cloudfront.net/zoomvideos/Zoomfest-JBM-SJM-KPM-18Jan2026.mp4
 
+# Moved dns NS and records from no-ip to AWS Route53 (domain still at no-ip)
+# added AWS Us-East-1 SSL cert via AWS Certificate Manager for assets.mccalliefamilystories.com
+
+# using CloudFront distribution with custom domain and SSL cert
+# assets.mccalliefamilystories.com pointing to CF distribution din7a2mculfky.cloudfront.net points to S3 bucket mccallie-family-stories
+# so final video URL is like:
+# https://assets.mccalliefamilystories.com/zoomvideos/Zoomfest-JBM-SJM-KPM-18Jan2026.mp4
+
+# python create_static_webpage.py --video_url \
+#   https://assets.mccalliefamilystories.com/zoomvideos/Zoomfest-JBM-SJM-KPM-18Jan2026.mp4 \
+#   "/mnt/d/Dropbox/McCallieFamilyStories/Zoomfest-18Jan2026/GMT20260118-190759_Recording.transcript.vtt" \
+#   test.html
+
+# full steps:
+# 0) get the video from Zoom cloud recording and resample to 720p H.264 mp4 with ffmpeg 
+#      using the custom script in the dropbox folder for mccallie-family-stories
+# 1) prepare the Zoom transcript VTT file (clean up speaker names, fix typos, etc)
+# 2) run this script to generate the HTML file (a static webpage)
+# 3) upload the 720p video to S3 bucket mccallie-family-stories/zoomvideos/XXX.mp4
+# 4) upload the generated HTML file to S3 bucket mccallie-family-stories/zoomvideos/XXX.html
+# 5) test the S3 directly via its S3 URL mccallie-family-stories.s3.us-east-1.amazonaws.com/zoomvideos/XXX.html
+# 6) test the CloudFront distribution URL din7a2mculfky.cloudfront.net/zoomvideos/XXX.html
+# 7) test the assets.mccalliefamilystories.com/zoomvideos/ URL
+# 8) NOTE that you might need to invalidate the CloudFront cache to see changes!
 
 import re
 import argparse
@@ -168,7 +184,7 @@ def generate_html(cues, video_url):
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Zoom Call Transcript with Flex Layout</title>
+  <title>McCallie Family ZoomFest Video and Transcript</title>
   <style>
     /* Ensure the page uses full viewport height and removes default margins */
     html, body {{
@@ -379,7 +395,6 @@ def generate_html(cues, video_url):
     <!-- Video container -->
     <div id="video-container">
       <video id="zoomVideo" controls playsinline preload="metadata">
-        <source src="{video_url}" type="video/mp4; codecs=hvc1" />
         <source src="{video_url}" type="video/mp4" />
         <source src="{video_url}" />
         Your browser does not support the video tag or this video format.

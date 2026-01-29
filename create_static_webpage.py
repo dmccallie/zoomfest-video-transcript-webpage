@@ -39,6 +39,23 @@
 # 7) test the assets.mccalliefamilystories.com/zoomvideos/ URL
 # 8) NOTE that you might need to invalidate the CloudFront cache to see changes!
 
+# fix up some old ones (sorry about bad naming conventions!)
+# python create_static_webpage.py --video_url \
+# https://assets.mccalliefamilystories.com/zoomvideos/Zoomfest-Jan2025-SJMIII.mp4 \
+#   "/mnt/d/Dropbox/McCallieFamilyStories/Zoomfest-Jan2025/zoomfest-Jan2025-merged-speakers-pseudo-edited.vtt" \
+#   zoomfest-SJMIII-19Jan2025.html
+
+# python create_static_webpage.py --video_url \
+# https://assets.mccalliefamilystories.com/zoomvideos/Zoomfest-Valentines-16Feb2025.mp4 \
+#   "/mnt/d/Dropbox/McCallieFamilyStories/Zoomfest-Feb2025/Zoomfest-Valentines-16Feb2025.vtt" \
+#   zoomfest-valentines-16Feb2025.html
+
+# python create_static_webpage.py --video_url \
+# https://assets.mccalliefamilystories.com/zoomvideos/Zoomfest-Genealogy-23Mar2025.mp4 \
+#   "/mnt/d/Dropbox/McCallieFamilyStories/Zoomfest-03Mar2025/Zoomfest-Genealogy-23Mar2025-corrected-transcript.vtt" \
+#   zoomfest-geneology-23Mar2025.html
+
+
 import re
 import argparse
 
@@ -66,9 +83,19 @@ def fix_spelling(text):
     """ fix a few family name transcription errors """
     corrections = [
       ("McCauley", "McCallie"),
+      ("McAuley", "McCallie"),
+      ("Mccauley", "McCallie"),
+      ("MaCaulay", "McCallie"),
+      ("Macauley", "McCallie"),
+      ("McAlley", "McCallie"),
       ("Catherine", "Katharine"),
       ("Chicago coal", "Chicago cold"),
-      ("HIROX", "High Rocks")
+      ("HIROX", "High Rocks"),
+      ("Carrie", "Kari"),
+      ("Madden", "Maddin"),
+      ("Alan", "Allen"),
+      ("Presley", "Pressly"),
+      ("Teresa", "Tresa"),
     ]
     for wrong, right in corrections:
         text = text.replace(wrong, right)

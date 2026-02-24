@@ -1,0 +1,2859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>McCallie Family ZoomFest Video and Transcript</title>
+  <style>
+    /* Ensure the page uses full viewport height and removes default margins */
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Georgia, serif;
+      background-color: #01182c;
+      color: #ded9d9;
+      line-height: 1.4;
+    }
+    /* The main flex container fills the viewport */
+    .container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    /* Video container (its height is adjustable via JavaScript) */
+    #video-container {
+      padding: 10px;
+      height: 50vh;
+      overflow: hidden;
+    }
+    #video-container video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* Separator bar: draggable by the user */
+    #separator {
+        position: relative;
+        height: 5px;
+        background: #ccc;
+        cursor: ns-resize; /* use ns-resize for vertical dragging */
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+    
+    /* Create a larger invisible hit area for iOS iPad */
+    #separator::before {
+        content: "";
+        position: absolute;
+        top: -10px;
+        bottom: -10px;
+        left: 0;
+        right: 0;
+    }
+
+    /* Search box styling */
+    #search-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
+      background-color: rgba(255, 255, 255, 0.05);
+      border-top: 1px solid #ccc;
+      border-bottom: 1px solid #ccc;
+      flex-wrap: wrap;
+    }
+
+    /* Transcript container takes remaining space and scrolls if needed */
+    #transcript-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 30px;
+      display: flex;
+      justify-content: center;
+    }
+    .transcript {
+      max-width: 1000px;
+      width: 100%;
+    }
+    .transcript p {
+      margin-bottom: 15px;
+    }
+    .timestamp {
+      position: relative;
+      color: white;
+      cursor: pointer;
+    }
+    /* make expanded hit area for timestamp clicks and touches */
+    .timestamp::before {
+      content: "";
+      position: absolute;
+      top: -15px;
+      left: -15px;
+      right: -15px;
+      bottom: -15px;
+    }
+    .speakername {
+      font-weight: bold;
+      font-size: 1.15em;
+      margin-right: 10px;
+      cursor: pointer;
+    }
+    /* inset speaker text to distinguish from speaker name */
+    .speakertext {
+      font-size: 1.1em;
+      cursor: pointer;
+    }
+    .speaker-section {
+      margin-bottom: 25px;
+      padding: 15px;
+      border-radius: 10px;
+    }
+    .speaker-section:nth-child(odd) {
+      background-color: rgba(255, 255, 255, 0.03);
+    }
+    .speaker-section:nth-child(even) {
+      background-color: rgba(255, 255, 255, 0.06);
+    }
+    .speaker-section p {
+      margin-top: 5px;
+      margin-bottom: 10px;
+      margin-left: 20px;
+    }
+
+    /* Active transcript segment (synced with video) */
+    .speakertext.active {
+      background-color: rgba(74, 144, 226, 0.3);
+      border-left: 3px solid #4a90e2;
+      padding-left: 8px;
+      margin-left: -11px;
+    }
+
+    #search-input {
+      flex: 1;
+      min-width: 200px;
+      padding: 8px 12px;
+      border: 1px solid #555;
+      border-radius: 4px;
+      background-color: #002244;
+      color: white;
+      font-size: 16px;
+    }
+    #search-input:focus {
+      outline: none;
+      border-color: #4a90e2;
+    }
+    .search-button {
+      padding: 8px 16px;
+      background-color: #4a90e2;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .search-button:hover {
+      background-color: #357abd;
+    }
+    .search-button:disabled {
+      background-color: #555;
+      cursor: not-allowed;
+    }
+    #autoscroll-toggle {
+      padding: 8px 16px;
+      background-color: #2d5;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    #autoscroll-toggle:hover {
+      background-color: #2a4;
+    }
+    #autoscroll-toggle.disabled {
+      background-color: #666;
+    }
+    #search-info {
+      color: #aaa;
+      font-size: 14px;
+      min-width: 120px;
+    }
+    /* Highlight styles */
+    .search-highlight {
+      background-color: yellow;
+      color: black;
+      padding: 2px 0;
+    }
+    .search-highlight.current {
+      background-color: orange;
+      color: black;
+    }
+    
+    /* Video error message */
+    #video-error {
+      display: none;
+      background-color: rgba(255, 100, 100, 0.2);
+      border: 2px solid #ff6666;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px;
+      color: #ffcccc;
+    }
+    #video-error h3 {
+      margin-top: 0;
+      color: #ff9999;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Video container -->
+    <div id="video-container">
+      <video id="zoomVideo" controls playsinline preload="metadata">
+        <source src="https://assets.mccalliefamilystories.com/zoomvideos/Zoomfest-Humhub-22Feb2026.mp4" type="video/mp4" />
+        <source src="https://assets.mccalliefamilystories.com/zoomvideos/Zoomfest-Humhub-22Feb2026.mp4" />
+        Your browser does not support the video tag or this video format.
+      </video>
+      <div id="video-error">
+        <h3>⚠️ Video Loading Error</h3>
+        <p><strong>The video failed to load or play.</strong></p>
+        <p>On iOS/Safari, this is often caused by H.265/HEVC encoding, which has limited browser support.</p>
+        <p><strong>Solution:</strong> Re-encode the video to H.264 format using:</p>
+        <code style="display: block; background: #000; padding: 10px; margin: 10px 0; border-radius: 4px;">
+          ffmpeg -i input.mp4 -c:v libx264 -preset slow -crf 23 -c:a aac output.mp4
+        </code>
+        <p style="font-size: 0.9em; margin-top: 15px;">H.264 is universally supported across all browsers and devices.</p>
+      </div>
+    </div>
+
+    <!-- Draggable separator -->
+    <div id="separator"></div>
+
+    <!-- Search box -->
+    <div id="search-container">
+      <input type="text" id="search-input" placeholder="Search transcript..." />
+      <button class="search-button" id="prev-button" disabled>Previous</button>
+      <button class="search-button" id="next-button" disabled>Next</button>
+      <span id="search-info"></span>
+      <button id="autoscroll-toggle" class="enabled">Auto-Scroll: ON</button>
+    </div>
+
+    <!-- Transcript container -->
+    <div id="transcript-container">
+      <div class="transcript">
+      <div class="speaker-section">
+        <span class=speakername data-time="0.0">Eleanor</span> <span class="timestamp" data-time="0.0">[ 00:00 ]</span>
+        <p>
+          <span class=speakertext data-time="0.0">Everybody in this… Have a… has some news they want to report.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="5.75">Yep. It can be anything.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="11.5">Gosh.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="12.14">Margaret Kolm</span> <span class="timestamp" data-time="12.14">[ 00:12 ]</span>
+        <p>
+          <span class=speakertext data-time="12.14">I have a question. I see Sumner in that… with that snowy Arctic background, and I'm wondering, is that really what Chattanooga looks like?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="22.67">Tom McCallie</span> <span class="timestamp" data-time="22.67">[ 00:22 ]</span>
+        <p>
+          <span class=speakertext data-time="22.67">Not currently, but about… 78.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="25.12">Sumner McCallie</span> <span class="timestamp" data-time="25.12">[ 00:25 ]</span>
+        <p>
+          <span class=speakertext data-time="25.12">A little bit ago, but not currently.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="27.74">Margaret Kolm</span> <span class="timestamp" data-time="27.74">[ 00:27 ]</span>
+        <p>
+          <span class=speakertext data-time="27.74">But that's where you had… Couple weeks ago?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="31.56">Sumner McCallie</span> <span class="timestamp" data-time="31.56">[ 00:31 ]</span>
+        <p>
+          <span class=speakertext data-time="31.56">That's right.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="32.58">Margaret Kolm</span> <span class="timestamp" data-time="32.58">[ 00:32 ]</span>
+        <p>
+          <span class=speakertext data-time="32.58">Yesterday was phenomenal.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="34.41">Sumner McCallie</span> <span class="timestamp" data-time="34.41">[ 00:34 ]</span>
+        <p>
+          <span class=speakertext data-time="34.41">those in Chattanooga know it was probably up towards almost 70. We just finished the Michaels Dixon Scholar Weekend, where we had 16 families from all over the country come and visit, and hope every single one of them comes. Remarkable group, so it was really nice to have phenomenal weather, and then now it's dived back down to the 30s, so…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="51.28">But it was good to have them here for a little bit.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="53.12">Margaret Kolm</span> <span class="timestamp" data-time="53.12">[ 00:53 ]</span>
+        <p>
+          <span class=speakertext data-time="53.12">retirement.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="54.77">Helen</span> <span class="timestamp" data-time="54.77">[ 00:54 ]</span>
+        <p>
+          <span class=speakertext data-time="54.77">Are you… sick?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="57.34">Sumner?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="58.27">Sumner McCallie</span> <span class="timestamp" data-time="58.27">[ 00:58 ]</span>
+        <p>
+          <span class=speakertext data-time="58.27">Yeah, a little bit, guess you're getting over stuff, but we're all good. It's all the normal things that go on with…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="63.0">Helen</span> <span class="timestamp" data-time="63.0">[ 01:03 ]</span>
+        <p>
+          <span class=speakertext data-time="63.0">Visiting feeble. Oh, yeah.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="65.73">Sumner, when, when, the school has to close for snow. What do you do with the borders?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="74.14">Sumner McCallie</span> <span class="timestamp" data-time="74.14">[ 01:14 ]</span>
+        <p>
+          <span class=speakertext data-time="74.14">It's pure soft.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="74.68">Allen McCallie</span> <span class="timestamp" data-time="74.68">[ 01:14 ]</span>
+        <p>
+          <span class=speakertext data-time="74.68">Father.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="75.61">Sumner McCallie</span> <span class="timestamp" data-time="75.61">[ 01:15 ]</span>
+        <p>
+          <span class=speakertext data-time="75.61">takes them down the hills.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="78.63">Ellen McCallie</span> <span class="timestamp" data-time="78.63">[ 01:18 ]</span>
+        <p>
+          <span class=speakertext data-time="78.63">Send them home!</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="81.77">Sumner McCallie</span> <span class="timestamp" data-time="81.77">[ 01:21 ]</span>
+        <p>
+          <span class=speakertext data-time="81.77">We don't do a lot of closing for… for snow, except for the… I guess, for the day families, it's harder sometimes to get in, but the guys on campus really love it, and they…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="91.15">Applied down various things, and</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="93.78999999999999">And it seems to work pretty well. Downing hall folks are fantastic.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="97.95">ice storm. In fact, they predicted some pretty significant ice, and so they actually rented an Airbnb right across from the school so their folks that worked in the dining hall could stay and make sure to support, and that was really kind of them. Our guys were fantastic as well.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="110.49000000000001">Helen</span> <span class="timestamp" data-time="110.49000000000001">[ 01:50 ]</span>
+        <p>
+          <span class=speakertext data-time="110.49000000000001">Whoa!</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="111.7">Sumner McCallie</span> <span class="timestamp" data-time="111.7">[ 01:51 ]</span>
+        <p>
+          <span class=speakertext data-time="111.7">Yeah, pretty, pretty neat, pretty neat group that we have.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="114.74000000000001">Allen McCallie</span> <span class="timestamp" data-time="114.74000000000001">[ 01:54 ]</span>
+        <p>
+          <span class=speakertext data-time="114.74000000000001">Helen, when David and Jack and I were at McCallie, we had a snowstorm, and for the first time in history.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="120.69">your father decided he had to call school off, and the next day he said he would never do it again, and he did.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="129.49">Helen</span> <span class="timestamp" data-time="129.49">[ 02:09 ]</span>
+        <p>
+          <span class=speakertext data-time="129.49">Well, I remember, Marshall, remember when…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="132.97">George Brown had to come and stay with us because Lookout Mountain was It was the big snowstorm.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="141.4">Allen McCallie</span> <span class="timestamp" data-time="141.4">[ 02:21 ]</span>
+        <p>
+          <span class=speakertext data-time="141.4">Ice Storm.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="142.03">Helen</span> <span class="timestamp" data-time="142.03">[ 02:22 ]</span>
+        <p>
+          <span class=speakertext data-time="142.03">Remember when George came for a week?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="147.65">Marshall McCallie</span> <span class="timestamp" data-time="147.65">[ 02:27 ]</span>
+        <p>
+          <span class=speakertext data-time="147.65">No, I did not recall.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="151.28">Allen McCallie</span> <span class="timestamp" data-time="151.28">[ 02:31 ]</span>
+        <p>
+          <span class=speakertext data-time="151.28">I think that was in 19.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="152.65">Marshall McCallie</span> <span class="timestamp" data-time="152.65">[ 02:32 ]</span>
+        <p>
+          <span class=speakertext data-time="152.65">He's a good buddy.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="153.86">Helen</span> <span class="timestamp" data-time="153.86">[ 02:33 ]</span>
+        <p>
+          <span class=speakertext data-time="153.86">Yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="157.6">Marshall McCallie</span> <span class="timestamp" data-time="157.6">[ 02:37 ]</span>
+        <p>
+          <span class=speakertext data-time="157.6">I do remember… When a fellow from Mississippi got on Uncle Bob's, lawn…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="165.12">and took the sled down toward Hutchinson Hall.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="169.46">Ran into a tree and broke his spleen. Uncle David had to…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="173.43">Allen McCallie</span> <span class="timestamp" data-time="173.43">[ 02:53 ]</span>
+        <p>
+          <span class=speakertext data-time="173.43">Yeah, rescue him.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="174.85">Helen</span> <span class="timestamp" data-time="174.85">[ 02:54 ]</span>
+        <p>
+          <span class=speakertext data-time="174.85">God.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="178.42000000000002">Allen McCallie</span> <span class="timestamp" data-time="178.42000000000002">[ 02:58 ]</span>
+        <p>
+          <span class=speakertext data-time="178.42000000000002">Wow.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="179.79">Sumner McCallie</span> <span class="timestamp" data-time="179.79">[ 02:59 ]</span>
+        <p>
+          <span class=speakertext data-time="179.79">One of the great stories under Uncle Spencer's leadership, appropriately, we didn't call school. It was… it was logical. McCallie was sort of prided on being open when a lot of other schools weren't, and at one point, I think we might have been the only school in the entire area that was open, and we had a student who printed out.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="195.41">Allen McCallie</span> <span class="timestamp" data-time="195.41">[ 03:15 ]</span>
+        <p>
+          <span class=speakertext data-time="195.41">about an 8-page list of school closings and taped it to the library door. And we… and it became a point of pride. It was really remarkable. Guys did great, and…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="205.03">Sumner McCallie</span> <span class="timestamp" data-time="205.03">[ 03:25 ]</span>
+        <p>
+          <span class=speakertext data-time="205.03">Loved it, so…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="207.61">Helen</span> <span class="timestamp" data-time="207.61">[ 03:27 ]</span>
+        <p>
+          <span class=speakertext data-time="207.61">Is it hard to get down the mountains, though, if there's ice and snow?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="213.03">Sumner McCallie</span> <span class="timestamp" data-time="213.03">[ 03:33 ]</span>
+        <p>
+          <span class=speakertext data-time="213.03">It seems to be harder now than it was 5 years ago or 10 years ago, just the expectation, and so we do actually close a bit more, more logically. And it's a broader, maybe a broader group of kids coming from a lot of different areas that are a little farther back, so it's worth being on the safe side.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="229.55">Tom McCallie</span> <span class="timestamp" data-time="229.55">[ 03:49 ]</span>
+        <p>
+          <span class=speakertext data-time="229.55">Helen and I was in a… with Hugh O. McClellan, we were coming down with a guy with… in a four-wheel-drive vehicle.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="237.16">And it was ice. And we said, can you stop? And he said, oh, sure, there's no problem. And he put on the brakes and nothing happened.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="246.91">Allen McCallie</span> <span class="timestamp" data-time="246.91">[ 04:06 ]</span>
+        <p>
+          <span class=speakertext data-time="246.91">Yeah, he stopped eventually, I'm sure.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="249.31">Tom McCallie</span> <span class="timestamp" data-time="249.31">[ 04:09 ]</span>
+        <p>
+          <span class=speakertext data-time="249.31">Oh, we stopped, but yes, but it took a while.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="257.1">Jim McCallie</span> <span class="timestamp" data-time="257.1">[ 04:17 ]</span>
+        <p>
+          <span class=speakertext data-time="257.1">Hey, Sumner, I want to ask, do you, do you give Friday off after Thanksgiving? Because when I was in school with Jack, Allen, and David, and others, they did not give Friday off. You had to take it off with points.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="271.63">Sumner McCallie</span> <span class="timestamp" data-time="271.63">[ 04:31 ]</span>
+        <p>
+          <span class=speakertext data-time="271.63">We do, we actually get a full week at Thanksgiving. We began to realize that guys were beginning to take that anyway when we started getting out on Tuesday afternoons, and they thought, well, they could switch two days for an entire weekend before, and so it just made more sense. Particularly with number of borders growing, it really helps them get home and experience it. We don't take the Monday after Thanksgiving off, but we do take that Friday, certainly.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="291.69">It's been helpful.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="295.18">Helen</span> <span class="timestamp" data-time="295.18">[ 04:55 ]</span>
+        <p>
+          <span class=speakertext data-time="295.18">And when we were that age at McCallie, they had a big Thanksgiving dinner, and the David McCallies would come, and the…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="304.5">T-Hook McCoys?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="307.73">Can you imagine going to McCallie for your big Thanksgiving dinner, and then people came to our house and watched football?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="316.05">Spencer</span> <span class="timestamp" data-time="316.05">[ 05:16 ]</span>
+        <p>
+          <span class=speakertext data-time="316.05">They were cheap.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="316.98">Jim McCallie</span> <span class="timestamp" data-time="316.98">[ 05:16 ]</span>
+        <p>
+          <span class=speakertext data-time="316.98">Sounds great.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="318.24">Sumner McCallie</span> <span class="timestamp" data-time="318.24">[ 05:18 ]</span>
+        <p>
+          <span class=speakertext data-time="318.24">Can you imagine coming to McCallie for Christmas? Just amazing.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="321.62">David McCallie</span> <span class="timestamp" data-time="321.62">[ 05:21 ]</span>
+        <p>
+          <span class=speakertext data-time="321.62">Christmas, yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="323.46">Helen</span> <span class="timestamp" data-time="323.46">[ 05:23 ]</span>
+        <p>
+          <span class=speakertext data-time="323.46">Who would do that?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="326.18">Allen McCallie</span> <span class="timestamp" data-time="326.18">[ 05:26 ]</span>
+        <p>
+          <span class=speakertext data-time="326.18">Can you imagine going to Atlanta for Christmas to watch football, which we did in a bus?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="333.90999999999997">Eleanor</span> <span class="timestamp" data-time="333.90999999999997">[ 05:33 ]</span>
+        <p>
+          <span class=speakertext data-time="333.90999999999997">Those… Oh, we know.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="334.90999999999997">Jim McCallie</span> <span class="timestamp" data-time="334.90999999999997">[ 05:34 ]</span>
+        <p>
+          <span class=speakertext data-time="334.90999999999997">I don't watch football, though.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="336.1">Eleanor</span> <span class="timestamp" data-time="336.1">[ 05:36 ]</span>
+        <p>
+          <span class=speakertext data-time="336.1">If y'all don't mind, I'll, I'll interrupt this, good, memory… Moment, and</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="342.9">get us started, because I know we'll have a lot to cover.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="346.01">If anyone else comes, it's great. We're just… glad to have them.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="349.98">William Pressly</span> <span class="timestamp" data-time="349.98">[ 05:49 ]</span>
+        <p>
+          <span class=speakertext data-time="349.98">I just wanted to reply about the, the,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="353.39">bus coming down to… to Atlanta. That… that really was a… Quite the occasion, and…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="360.02">Every girlfriend I had, I think, was absolutely terrified by the experience, because the gullies would come piling out.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="369.37">Of course, Franklin would grab…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="372.69">Nancy would raise her up, and that was something else, and…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="378.26">Allen McCallie</span> <span class="timestamp" data-time="378.26">[ 06:18 ]</span>
+        <p>
+          <span class=speakertext data-time="378.26">It was fun, too, with Mom and Dad.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="382.36">William Pressly</span> <span class="timestamp" data-time="382.36">[ 06:22 ]</span>
+        <p>
+          <span class=speakertext data-time="382.36">And in the closet, the walk-in closet back in their bedroom.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="387.49">That's where the bar was set up.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="389.58">Eleanor</span> <span class="timestamp" data-time="389.58">[ 06:29 ]</span>
+        <p>
+          <span class=speakertext data-time="389.58">I remember that.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="390.9">William Pressly</span> <span class="timestamp" data-time="390.9">[ 06:30 ]</span>
+        <p>
+          <span class=speakertext data-time="390.9">Everybody would go in there, and Uncle Park, finally.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="395.15">Founders, but they backed in there one day.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="400.49">Eleanor</span> <span class="timestamp" data-time="400.49">[ 06:40 ]</span>
+        <p>
+          <span class=speakertext data-time="400.49">When I turned 21, Uncle Spence took me back to the bar. I was so shocked.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="408.79">Well, if you don't mind me getting started,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="412.86">We wanted to talk today about how… how this thing has grown, and the opportunities we have as a result, and we'll… we'll get into that and let you ask a lot of questions.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="423.41">But I just wanted to say, when I started this, about 2 years ago, I had no idea how it would evolve over time.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="432.53">And initially, I was just motivated by a love of stories, because they made me laugh and feel like I belonged.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="439.58">And my goal was to generate and share more family stories, memories, and meaningful expressions as a way to… for us to identify ourselves as Macaulies.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="450.23">And I hope that no matter where you lived or how old you were, you might say one day to someone on some occasion that seemed appropriate.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="458.63">Allen McCallie</span> <span class="timestamp" data-time="458.63">[ 07:38 ]</span>
+        <p>
+          <span class=speakertext data-time="458.63">This is more fun than it seems.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="461.63">Eleanor</span> <span class="timestamp" data-time="461.63">[ 07:41 ]</span>
+        <p>
+          <span class=speakertext data-time="461.63">And saying that would cause you to chuckle, just like you did.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="465.71">Knowing where that expression came from, and that it connected you to a family that shared this story.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="474.57">So we… and others, but we started in 2024, using Zoom, because that… we'd gotten used to that during COVID, and the use of Zoom made it possible for us to connect no matter how far scattered we were, or,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="491.58">Or what time zone we were in, and currently we cover 8 different time zones on 2 continents.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="500.08">Over time, several, several of you have volunteered to help.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="505.29">And those of you who joined me as a part of the Zoom Fest team.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="509.37">We were all kind of worried at first that this all… that all of this, this… all of this effort to gather stories and memories.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="517.72">Might just disappear.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="519.46">Over time.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="522.24">And so we wondered… we pondered about this problem, and we wanted to find a way to keep these stories</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="528.49">To save the photos, to generate new material, and also we wanted a way to comment to each other, back and forth without using email.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="539.44">So, today, that's what we're going to talk about. We have some news.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="544.01">We on the Zoom Fest team are actually amazed to see what has happened.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="550.58">It was unimaginable when we started.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="553.57">But a wish, a dream, and just a flicker of imagination may become reality now. So, the timing is perfect for two reasons. I want to share those.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="564.86">Probably most significantly, the technology has developed</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="571.49">To a point that it makes this possible.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="574.74">In fact, in the two years that we have been doing the McCallie Family Zoom Fest, the technology for Zoom recordings.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="583.73">and giving you back an AI transcription, For building a family website.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="590.77">and for all that AI provides has improved so much that we are able not only to envision what we're about to tell you, but also, I think we can carry it out.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="604.97">And another reason I think the timing is perfect is that</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="609.02">The current older generation is a bridge generation.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="613.43">In most cases, we remember the generations gone by, and we have inherited from them</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="620.66">A love of family and family stories, but also we have acquired a whole bunch of boxes and files of old family stuff.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="630.57">And if we don't do something with them now, they're likely to be lost.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="635.87">So this is the time to do this work.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="639.61">And this is how we got here. First of all, David was essential. David's help.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="646.68">Spending long hours testing sites, researching for answers, We have found a platform</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="654.33">That we think allows us to develop a family website.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="658.56">Where we can keep our live Zoom Fest sessions, written stories, letters, Photographs, interviews, And maybe…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="669.85">As significantly to interact with each other in a format other than email.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="678.95">So just… and also, in case you're wondering, who… how you're related to all the people who might be involved, Kari has created a multi-level genealogy chart.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="689.23">And that not only links you to all the other people, but it will link you to the website, and to different, stories or photos that are posted on the website.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="703.41">So now, our challenge is to populate this family website</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="708.77">So that it's wonderfully useful and very interesting to us, and it'll be something that we will love and cherish. So that's what we're going to talk about today.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="719.17">And I also want to say that as more of the older generation retires, hopefully some of you will be interested and will offer to help.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="728.93">It's mostly going to be our generation that does this work, and this is our time to do so.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="735.64">But our biggest hope is that the younger generation will take an interest</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="740.97">Not only in it being something available in the future, but also in the process of gathering and creating this material.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="748.65">Some of you may have talents that can be helpful to us, so let us know that.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="754.79">The relationship between the generations is so important that we want to build that into the process.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="760.67">That means some of the efforts will be partnership efforts across generations, and I need your help in doing that.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="769.97">There are going to be a lot of questions today about what we are trying to do, what material we are gathering, and how we should go about it.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="778.43">And to tell you the truth, we don't have all the answers, but we are confident that we can figure it out as we go.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="785.1">So first, we… we just felt like you needed to…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="789.34">hear from us. You need to see what we're trying to put together, and have a chance to, engage with us, ask questions, and see where this goes. So we're going to start today, first with David.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="802.4">who's going to explain the family website, and then with Kari, who will go into the family tree and how it connects to the website.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="811.5">And then we'll open it up for questions. They may engage questions along the way, that's fine too, but I just wanted to let you know that we'll definitely take questions whenever they come. So, David, that's kind of my segue into you. Are you ready?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="830.26">David McCallie</span> <span class="timestamp" data-time="830.26">[ 13:50 ]</span>
+        <p>
+          <span class=speakertext data-time="830.26">I think so. Can you guys hear me okay?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="834.07">Yep.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="835.1">So I made some notes beforehand of what I wanted to stress, sort of, for an introduction, and Eleanor covered all of the points, but that won't stop me from repeating, the things that,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="848.99">that drove me to do some of this work. I got actually started, I think, independent of Zoom Fest, and then when</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="857.02">Eleanor and I talked about Zoom Fest, it was like an obvious connection of this sort of long-standing wish that I had had to find something better than</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="868.07">The commercial social media sites to…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="872.09">Host and facilitate and memorize or remember</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="876.69">fun conversations, initially just with my… within my own family, but obviously within the broader family. And as all of you who use Instagram, or Facebook, or Blue Sky, or any of the commercial media sites know.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="891.53">you don't really have any control over that. The decision about how long something stays visible, and who can see it.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="898.08">And what kind of commercialization can be applied to it is completely outside your control, which is why those are free products, but it also makes it really a painful way to, you know, share and remember</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="913.42">fun stuff in your family. And as a lot of you know, I set up a SmugMug photography site just to preserve pictures, and that was fun, and it's got all sorts of McCallie family pictures on it, but it didn't preserve</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="928.05">anything more than just pictures, which, you know, is an important start, but it doesn't capture everything. So when Eleanor sort of raised this idea of these Zoom calls and</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="938.57">the stories that she used to get us excited about joining in the Zoom call, it was like…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="946.45">sort of an incentive to go figure out a better tool. And so I spent a lot of time… a better tool to capture all this stuff, and something that we could control. So I spent a lot of time looking at, alternatives, commercial, there's some for-hire social media companies where you can pay a monthly fee, and they'll host your</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="965.35">family, website, and the ones I looked at were very limited, and</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="970.53">the fees were more than I thought were justified. So, long, complicated searching.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="976.74">went around and I landed on this product, or this open source product called HumHub. And some of you have seen me demo it before, so some of this will be a little bit repetitive, but I think there are a bunch of you on the call who've never seen it, so I'm going to walk through</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="991.14">sort of a demonstration of what HumHub is and how it works. Just a little bit about the background, where the name comes from, and who is HumHub. It's a German company that has open-sourced their social media platform.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1006.98">the open source means that I can take their source code and implement it and run it free of charge from HumHub itself.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1015.33">alternative is you can pay them, and they'll host it for you, and they make a living hosting it for small businesses who want some kind of a business-centric social media site, but they're happy to make the source code available for people that are willing to do it on their own, so that's what I've spent</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1032.95">the latter couple of years figuring out how to do, so it's currently hosted by me on web servers that I lease from Amazon, Amazon Web Services, so it's completely under our control.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1046.839">And it's archival, which was kind of one of my goals, is I wanted something that could preserve this stuff forever, if we want to, if we want to save it. So it's all based around open source</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1060.88">capture of the images and the stories and the documents and everything like that, so that we're not beholden to some company that may decide to go out of business, or if it was a Google product, they just</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1072.28">arbitrarily stop supporting something when they get bored with it or tired of it. So it's entirely ours to make of what we want. And HumHub has been really good, it's well supported, it's robust, it's used by hundreds of companies, mostly in the EU.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1089.21">The EU data protection laws actually make their security model and control model</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1094.63">better than U.S. companies, so that's kind of an unexpected, benefit.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1099.2">But, so, goals were, you know, to kind of keep us connected.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1103.78">I'd like to see HumHub be a replacement for the long email threads, where we, you know, kind of somebody throws an idea out, and we get a response, another response, another response, and we get these wonderful things.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1114.78">But they're trapped in email, which is not a very pleasant way to browse or to remember the story. So keep us connected in real time, or near real time.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1125.5">Explain how we're connected, and Kari's going to go into that in the genealogy, so we've kind of integrated the genealogy as tightly as we can. It's not perfect, but it's awfully good. And then third is, remember all this stuff. Archive it for</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1141.21">Our children, and maybe our children's children, if they want to come back and Remember, sort of.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1148.66">the heritage… Of the family that they've become part of.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1153.87">So let me just go through and do some screen sharing and walk you through the product. Oh, I should say this. I'm gonna… I'm gonna walk you through stuff. It might be a little confusing, because there's a lot there, and I'm gonna go pretty quickly.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1168.18">And then… but don't worry, just sit back, try to get a feel for it, don't have to remember anything, because later this week, hopefully later this week, I'll send</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1177.78">An email invitation out to everybody to join the site.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1182.78">because it's a private site, you can't get in unless I send you an invitation. So I'm going to send you an invitation, it'll show up in your email, you'll click it, you'll…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1191.63">create an account, and you'll be a member of the HumHub site. And that email… I'll send you an email that has instructions with screenshots and details, so you don't need to make any notes or write anything down.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1204.57">But I… it'll help to have seen it, I think, before you try it on your own. So,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1211.95">Oh yeah, yeah, so Kari answered, Helen's question. It's Home Hub.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1218.87">Not humbub, or bub-hum, or humbob, but hum-hub.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1223.42">We can call it whatever we want, but there are… the word HumHub will be embedded in some of the screens that I can't… that's… that's the… that's what they do. That's how they…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1233.06">market their product. Okay, so I'm going to share the login process. Hopefully you can see my screen there that says McCallie, and please sign in.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1247.11">Okay, so, when you first sign in, you'll provide a username or email. I would suggest an email, and you unfortunately have to invent a password.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1256.72">unless you are an avid Google user, in which case, Google will manage the username and password for you. If you use Google a lot and have that, it's a whole lot easier way to sign in, and so I'm gonna… I'm gonna use that. So I just click on Google, and Google</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1274.29">behind the scenes goes and fetches my email, it knows who I am, and it supplies my, name and my email, and logs me straight in. So, this is the quickest way to get in, is to use something like Google, but if you don't use Google a lot, the easy way… other easy way is just give them your email, and make up a password, write it down somewhere, because you'll need it.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1299.42">And then log in. It's… it can be… it can be really simple. I checked the Remember Me box, I'll point all this out, but the Remember Me makes future logins go really quickly.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1310.18">The way HumHub works is it's organized around something called spaces, and a space is a way to sort of partition the number of things that you might want to put on HumHub into categories so it's easier to find stuff that you're looking for.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1328.07">Now, there's a couple of spaces on the screen showing up here that are visible to me only because I do some testing, so you will see a slightly fewer spaces. But when you see a space like this one here called Family Stories, it tells you that's what's</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1344.35">available in that space. In some ways, it's like in Facebook, you can set up groups, private groups, or pseudo-private groups. That's what these spaces are.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1356.22">there will be… the first thing you see when you log in, however, you'll come right into this thing called the Dashboard. And I'll point out across the top of the screen up here is the menu. So we have Dashboard.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1367.71">people…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1369.08">Space is… there's a calendar function, which we don't currently use, but maybe at some point we would put</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1375.85">broad family events, like the camping trip or Christmas and stuff like that in the calendar, to be determined. But when you first log in, you'll see this thing called the dashboard. And the dashboard is basically the news feed, like in Facebook. So it's the new stuff that's been posted</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1392.67">to one of the spaces that you have chosen to follow, and I'll explain what that means in a minute, but just assume for the moment that you're following all the spaces, which is probably what most of us will end up doing. Anything that gets posted into a space will show up in your dashboard.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1409.2">in chronologic order, so the most recent stuff will be at the top, and then as you scroll down, you'll see older stuff. So you see here the Christmas party at McCallie that Kari posted the picture for. Kari also posted some photos of the pickleball tournament.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1427.01">A little earlier than that, Hastings had posted some pictures also from the Christmas dinner, and had shared those with the family. I'll scroll through those quickly here, just to give you a sense</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1439.12">Of the other things.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1440.65">Earlier, back in the summer, Kari and I were working on, getting some pictures for the… a photo project that we'll talk about later, and so we had some posts that got shared</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1452.77">uploaded things. So anything new that happens is going to show up in the dashboard. So that's the way to kind of keep in touch with what's going on. If you want to share something.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1466.09">Then typically what you would do is you would join a space, and…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1470.54">go into that space, and this one I'm going to call… have one called the McCalling Family News Feed, and you can see here.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1477.0">It says, tell us what's happening, share updates and pictures with the whole family. So, if you go into the newsfeed, you can see this is where Kari actually posted that Christmas photograph.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1488.96">So having posted it in the newsfeed, it got shared on the dashboard. The dashboard is kind of read-only, the space is where you create something new. So if one of you wanted to share something fun that was going on, like Jim.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1501.82">you showed us the pictures of your walk this morning. You could come in here and say, you know, Martina and I took a walk this morning.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1508.97">You click this little button here to upload that picture, and you would share it with the whole family. And anything that gets shared can be reacted to, people can make a comment, they can click the like button, sort of like on Facebook or whatever. So that's, the core concept is there's a dashboard for what's new, and space is where you can create stuff.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1528.53">But spaces is also what we use to archive stuff, so, I'm gonna go into the space called Family Stories.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1536.77">And these are stories that occurred outside the Zoom Fest. As some of you recall, we got started, I believe, one of the early ones, with an email thread that Eleanor kicked off about, this is more fun than it seems.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1553.69">And what I did is I took that email thread, and I just archived it here.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1558.35">as a story. And it's just the text of the email, cut and pasted in.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1563.52">to the story, and then we added some of the pictures that had gotten shared as part of the capturing of that story. So these are these amazing pictures of</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1573.88">hauling the… the little wooden boat my father had up to, up to the Hiawassee Lake and, or Teleco for the camping trip that… the famous, more fun than it seems. Jim had uploaded some other photographs in that thread, and you get the idea. Now, so…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1592.48">what I've got here is what's called a wiki, and this is a little bit confusing, but when you put something into a space, you can either put it in a stream, which is like a stream, it'll show up for a while, and then it'll just flow away.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1606.36">I don't ever…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1607.84">erase the streams, but the further away the stream is, the less likely you are to see it. But if it's something you want to archive and remember, you put it in a wiki.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1617.02">And so, that, Freddie McCallie, this is more fun than it seems, is a wiki entry. Wyatt wrote a beautiful reflection on his trip to Gettysburg.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1627.07">So that's preserved as a story, with… in this case, it was from the email thread, but in the future, I would hope that someone who wanted a story like that could literally just create a wiki entry</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1638.88">And, and put that in. So here's a more recent, post from Wyatt about,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1646.46">West Point, and, the,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1652.26">Well, actually, where did it go?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1658.13">Okay.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1659.4">I think it's… I don't know what happened to that one. There's still some bugs we're working out. But so you can see that the… that's one space for recording of the stories. The space with the most current, information is the Zoom calls, Zoom Fest calls, and what I've done here is use the wiki.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1677.14">to keep track of each Zoom Fest as a separate, entry in the wiki. So I'm going to go click into the February, of 2025, last year's Valentine's Day call.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1690.45">The wiki automatically builds a table of contents, so you can jump around. And what we've got here is, to start with, is the AI summary.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1700.88">of that Zoom Fest call, so this, you know, will have some errors in it, but it's actually a pretty high-level, accurate summary of what we discussed in that call.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1712.06">You can then use the table of contents if you want to jump in and remember something specific. So, you know, I'm going to click to the link to the part that I presented, so these are the photographs that I shared.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1724.3">In my part of that Valentine's Day story,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1729.66">And then if you want, you can click here and watch the whole Zoom video. So you see this link here, click here to watch the Zoom video.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1737.33">And if you open that, it will actually, just drop you right into the… to the video itself. So, this is a searchable,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1752.58">searchable, text, the transcript of the video, so, I don't know, we could search for, let's say, Chattanooga.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1762.54">And you'll find parts in the link in the video. We're having a lot of flu here in Transylvania County. The hospital's filling up with</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1771.88">Patience.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1773.37">So you could jump around in the video, and… Yeah, we've had a lot, so here's, just jump forward. So this is September, they've just gotten engaged, and they get married in November, so that gives you a sense of the time. So…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1785.96">Not to belabor it, the video is there, the transcript is there, and this nice high-level summary is there, as well as the pictures that were shared in the video, if you want to look at the pictures</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1797.1">outside of the… of having to find them in the video. So we have one of those entries for every one of the, Zoom Fest</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1806.16">stories, and we'll continue to… our Zoom Fest calls, and we'll continue to do that going forward, just like this call. Once it's done, I'll take the video, process it, and upload it to the system.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1819.37">So let me show you a couple of other spaces. These are all completely things that we choose to do. This is something we control completely. But I added one called Recipes, Favorite Family Recipes.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1832.51">And, Kari, who has completely mastered HumHub, immediately figured out how to upload one of her favorite rep, memories of a recipe from Aunt Queenie.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1845.51">Again, the recipe doesn't just have to be the text of the recipe. She put some pictures in to bring, bring that recipe to life. There's, Anne Queenie in the kitchen, which I remember, and I'm sure many of you remember much better than I do, working away at making a holiday meal.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1863.86">So we can add more, recipes as you see fit.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1869.0">I made another space, just again, for the fun of showing what is possible. We can make as many of these as we want, but here's a space where I've been trying to capture all of the books that have been written by people in the family. So.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1883.9">Eleanor's two books are listed here, along with the blurbs taken from Amazon, and a link to Amazon if you want to go buy the book, and my father's book.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1894.33">THM,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1896.21">Bill Pressly's… one of Bill Pressly's books, about the French Revolution. Again, taken from Amazon, no, no, no deep research here. Here's a link</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1907.49">to Anna's forthcoming book, which will be out in June, where she's excited that her first book is gonna get published, and then I added a couple of books</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1917.95">Just about McCallie, that I found just by searching around the web, so Barry Parker and George Hazard book. Again, we can make of this what we want,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1929.24">I don't need to go any further through these. I will point out that, you can see on the upper left-hand corner of my screen a space called the DPM family.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1940.49">we have not really turned this on, or not anticipating turning this on early on, but it's possible that we can create subspaces that are just for a specific subtree of the family, if you want to. I put this here just as a placeholder</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1956.12">To experiment with it, but it's actually a hidden space, so you won't see it, when you first log in. And we can, you know, as we get familiar with using the tool, we can decide, hey, we'd, you know, we'd like to have a T-Hook McCallie space and a Spencer McCallie space if we wanted to.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1972.45">And then I'll mention, this space over here on the right side of the screen, McCallie Photographs by Generation. We're going to talk about that in a future Zoom call, so I won't go into that, but I'll just point out that this process Ellen mentioned… Eleanor mentioned earlier of capturing important</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="1991.17">photographs and making sure they're archived in a way that everybody can have access to them, that's going to be the core focus of that space, and we'll go much deeper on that in a future Zoom call.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2006.52">So, let me go back to… let me stop sharing here.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2012.63">go back to the regular screen. So, oh, I didn't… well, I didn't do the genealogy links, but I think Kari's gonna do that, so she'll jump in with her screen share and show how the genealogy works. But I've been doing all the talking, and you're probably sick and tired of hearing me…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2030.1">talk, so ask me some questions if you have any, and otherwise we'll move on to Kari.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2041.62">Mae Cooper (She/her, DC)</span> <span class="timestamp" data-time="2041.62">[ 34:01 ]</span>
+        <p>
+          <span class=speakertext data-time="2041.62">I have to hop off in a couple minutes, but I just want to say I love the range of our writing topics, from French Revolution to modern-day rom-coms. It really hits the gamut, so that's wonderful, but this is amazing to see, David. Thank you for all the work you've done.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2058.33">David McCallie</span> <span class="timestamp" data-time="2058.33">[ 34:18 ]</span>
+        <p>
+          <span class=speakertext data-time="2058.33">Well, it's… it's been fun. I enjoy… I enjoy this kind of stuff, and I really think it could be…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2064.989">So important and useful for the family.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2068.92">I… I get excited about What we can build up.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2073.6">if all of us, you know, go find the things that are most special in our thoughts about the family and get them archived, it's an amazing resource. It's what we make it, but it could be an amazing resource.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2088.09">Kari, do you want to talk about the genealogy?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2091.82">Kari McCallie</span> <span class="timestamp" data-time="2091.82">[ 34:51 ]</span>
+        <p>
+          <span class=speakertext data-time="2091.82">Yeah, I can do that, unless there's any other questions so far that anyone wants to ask David, but I can go over the genealogy part. So, again, here's the screen with the dashboard showing.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2105.69">And if you go to the spaces, you will see that there is a space that says Genealogy, and has a very cute picture of a family tree here.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2114.76">And so, in here, it tells a little bit about, the genealogy and how to get onto our grants website.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2124.27">So, Gramps is, a genealogy software that is also open source. As David has talked about, like, open source software means that you can use it, for free.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2136.37">And it's also very well researched and supported, so that we don't think it's gonna go away, anytime soon.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2145.08">And this is the software that I used to collect all of the family tree information, initially starting with Spencer Jernigan McCallie Sr, since he's the common ancestor of most of us here, but we've also then expanded that to his father.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2162.06">Thomas Hook McCallie, the Reverend, and his wife, Allen Douglas Jardengan, and then all of their children. And you'll remember they are the couple that had 16 children, 8 of whom, lived to adulthood, essentially.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2179.63">So, grant… initially, the, all the family tree information was… is housed on my computer, so as secure as that can be.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2190.73">And now we have found a way to integrate it into the website. They are two set… it's two separate websites, it's not part of HumHub.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2199.67">And so the downside of that is you do have to create another account with a login to get into the Gramps part of the website.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2211.12">But, and, you know, you only have to do it once, but it does, it is important because genealogy databases contain important things like birth dates and mother's maiden's names and things like that.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2224.48">So you will have to log in, but there are instructions here about how to do it.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2229.07">And, right now, it is read-only, so when you go to the Grants website, you won't be able to add any people or update dates if they're wrong, so if there's any corrections or things that you want to add, you would just contact me.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2247.61">And so there's a couple of different ways, to get to that website. One is you can come to this space, and there's a link right here. And anything that's in blue text, on the website is generally going to be a web link.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2263.99">And so, I don't know if you can see in the very bottom corner of my…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2270.49">When I hover over it, it actually tells you what the web link is, and I don't know if that's…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2275.71">maybe unique to my computer, but usually when you hover over a link, it will… it will sort of indicate that it's a link. So you can click on that, and it will take you into the website.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2287.28">So again, this is a separate website. I have already logged in to this website and created my own account, so it remembers me, so I can't show you the login, but it is not difficult. And when you first log in, you're going to be taken to this home page.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2305.13">And on this homepage for everyone, I would really, encourage everyone to set themselves as the home person. You can do that by clicking on the little pencil here,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2317.71">And you can select, by typing in your name, so if you wanted to, do it as David, it will tell you who all the Davids are.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2328.78">So you can find yourself here.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2332.58">There's Helen, and set yourself as the home person. And I would do that because…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2341.46">Anytime you then find a person, a different… another person, so let's say,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2353.47">The other great thing about this is you can just… this search bar, this… the magnifying glass here, is great for searching anything you want to find. So if you want to find a person.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2363.51">So I want to know how I am related to…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2370.84">our common ancestor, and I click on him, now it tells me relationship to home person.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2376.29">So he is my great-grandfather.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2379.12">So these are the people pages, so anytime you select or look for a person, it's gonna have their name.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2387.46">It's gonna have their birthdate and their death date, and the places of those. It's gonna tell you how you're related to that person. It has the opportunity to show them in the family tree, which I won't do quite yet, because I want to go through the rest of this page, but we'll get there.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2401.72">So, it will tell you, Who their parents are.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2408.6">Who all their siblings are.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2411.85">who their partners are, so spouses. So again, Spencer Jernigan had two, Alice Fletcher and Katharine Pierce. It will tell you all the children from those relationships.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2423.91">And as well as birth and death dates of those folks, and how old they were.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2429.83">So this is a good overview page for each person. If you're looking for nicknames, which I don't think he has any, they would be here. You can see events, birth and death. Timeline will just sort of tell you where it gives sort of their family timeline. It also shows you the map.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2448.06">Of where the various things have happened. And I don't think we have anything in… and oh, we do have. Some of them have links to, for example, outside websites.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2459.12">That show a little bit more information and have information about where, for example, Find a Grave, is one of the websites, that I have used in making the family tree, because it has lots of good dates in it.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2472.21">So occasionally, there are some links to outside</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2476.29">Okay, let's shut that down, huh?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2480.22">Sorry, I can't see.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2483.7">Close.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2488.95">We'll go here.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2493.57">Okay.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2494.41">So let's look at the family tree a little bit. You can… you can, access the family tree through this left side, and click on Family Tree, and it's going to set the, basically, the home person as the main person, and there are several different, types of graphs that you can see. You can see an ancestor tree.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2513.91">Right now it's showing my ancestors, because I'm the selected person. If I want to select my grandfather, so Thomas Hook McCallie, it shows all of his ancestors. If you want descendants, then it will show all of his descendants.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2529.74">Hourglass shows both.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2532.34">ancestors and descendants. And then my favorite of these is the relationship graph, because you can actually zoom in and out, through whatever zoom mechanism you have on your,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2546.5">Computer, and you can sort of see, get a sense of the whole picture, and then zoom back in.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2552.91">So some of the other things on this page, you can set it to go to the home person, so then it's gonna go to me, because I'm set as the home person.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2562.2">You can look at that person's details, so again, because I selected the home person.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2570.77">go back to Family Tree. If I selected, for example, my father… Wyatt…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2577.99">And went to Person Details, it will show his information.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2582.4">And then the other way to get to the tree is in each person's, entry. You can click show in Tree, so it will show them. And then, if you want to mess around with more, or fewer, or more,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2601.03">generations, ways of displaying, you can do that. You will not break this system. Neither… and I hope I'm not speaking out of turn, David, but neither of these sites will you break by playing around in. Am I correct, David?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2616.71">David McCallie</span> <span class="timestamp" data-time="2616.71">[ 43:36 ]</span>
+        <p>
+          <span class=speakertext data-time="2616.71">Yeah, yeah, and if you… if you do something, we can fix it.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2620.9">Kari McCallie</span> <span class="timestamp" data-time="2620.9">[ 43:40 ]</span>
+        <p>
+          <span class=speakertext data-time="2620.9">Yeah, so don't worry about just exploring. That's the best way to sort of get to know all of these sites. Even I don't know what all of these things do.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2631.68">So what I've been using most, are the family tree, and then, basically searching for individual people.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2640.99">So let me show you how this integrates into… the McCallie website.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2649.24">Which I will get to somewhere.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2654.6">David McCallie</span> <span class="timestamp" data-time="2654.6">[ 44:14 ]</span>
+        <p>
+          <span class=speakertext data-time="2654.6">I think it's the second tab you're saying.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2656.56">Kari McCallie</span> <span class="timestamp" data-time="2656.56">[ 44:16 ]</span>
+        <p>
+          <span class=speakertext data-time="2656.56">Yeah, I can't… the… the Zoom… oh, there we go, the Zoom controls are in my way. There we go. Okay. So, let's go back to, the spaces, and let's go to the news feed.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2673.79">And this is where I posted the Christmas picture.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2677.11">And then, one of my commitments to this website is anytime…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2684.14">there is, like, a picture or, a story that has the names of our relatives, I have gone in and, for the most part, linked those person names</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2697.4">To the genealogy website.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2701.0">So, for example, here, I posted the picture, and then I was able to identify all of the people in the picture with a little bit of help. And you can see that a lot of these names are blue. Most of them are blue, because most of them have a family tree entry.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2716.6">So, if you click on the name of that person, it will go to the website, and it tells me that Emma is my second cousin.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2724.7">And then if I want to, I can show her part of the tree, and I could eventually maybe see</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2734.45">how she is related to me. I think we have to go back. We have to select someone who's a little bit further back.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2740.59">So… So anytime you see a name, again, Spencer…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2749.34">is my first cousin once removed. So this is how you can sort of tell how you are related to everybody in all of these pictures.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2758.95">And so, again, anytime you see names in blue, they probably have, a link.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2768.11">So Charlie's my niece.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2772.75">What else? Oh, so I would love to be able to do this for things, like all of these pictures. Unfortunately, the… well, not unfortunately, but these photos got added all in one group, so,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2788.49">there's no ability to caption each of the pictures separately, but if we have the ability to do that, I would… and people have named the people who are in the pictures, I can go in and link them to the website.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2801.4">And so.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2803.64">David McCallie</span> <span class="timestamp" data-time="2803.64">[ 46:43 ]</span>
+        <p>
+          <span class=speakertext data-time="2803.64">I might be… I might be able to break those apart.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2806.92">Kari McCallie</span> <span class="timestamp" data-time="2806.92">[ 46:46 ]</span>
+        <p>
+          <span class=speakertext data-time="2806.92">Or, you know.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2807.44">David McCallie</span> <span class="timestamp" data-time="2807.44">[ 46:47 ]</span>
+        <p>
+          <span class=speakertext data-time="2807.44">But I…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2808.26">Kari McCallie</span> <span class="timestamp" data-time="2808.26">[ 46:48 ]</span>
+        <p>
+          <span class=speakertext data-time="2808.26">And then… So, so one thing, if you do post some pictures,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2813.8">it would be great if you put the names in. I am pretty good at knowing everyone, but I… but not all the time.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2822.24">So, what else can I show you?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2827.21">I think that's most of it. Oh, I know, I wanted to show the, big wedding picture.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2835.57">So we do go back a few generations, so… This is the not-good version.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2842.75">David McCallie</span> <span class="timestamp" data-time="2842.75">[ 47:22 ]</span>
+        <p>
+          <span class=speakertext data-time="2842.75">Yeah, I think if you scroll down a little further, there's the better version.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2845.61">Kari McCallie</span> <span class="timestamp" data-time="2845.61">[ 47:25 ]</span>
+        <p>
+          <span class=speakertext data-time="2845.61">The good version? The good version? I think so. Actually, let me just go. I think it's in spaces, and it… even though we're not, into this project yet, it's in here.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2856.22">David McCallie</span> <span class="timestamp" data-time="2856.22">[ 47:36 ]</span>
+        <p>
+          <span class=speakertext data-time="2856.22">Yep.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2856.84">Kari McCallie</span> <span class="timestamp" data-time="2856.84">[ 47:36 ]</span>
+        <p>
+          <span class=speakertext data-time="2856.84">Okay, so here's the better version of this picture. This is the Reverend, Dr. and Mrs. Thomas Hook McCallie's 50th wedding anniversary. They are the two in the center here. And so, this is many of their children and grandchildren.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2873.71">And their grandchildren are most of the peoples on this call's parents or grandparents.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2881.25">So because the family tree sort of goes back, to Thomas Hook McCallie and his children, there are several folks in here who are also, so this is, the famous Uncle Ed.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2895.62">And he's my great-granduncle.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2902.24">So, that's just an example of how all of this, ties in.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2908.26">So, I can… let me just check the chat and see if there are any questions that I can answer.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2919.49">Yes, I did enter all of the info into the database that exists on my computer, and then I'm able to export that. I send it to David, and he does his web magic, and it ends up as a website.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2935.62">That's… that's something that the Gramps software supports, is taking a database that's locally housed and creating a website from it.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2944.23">Any other questions?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2954.45">Employee group today.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="2956.67">David McCallie</span> <span class="timestamp" data-time="2956.67">[ 49:16 ]</span>
+        <p>
+          <span class=speakertext data-time="2956.67">I want to, while you're thinking of questions for Kari, I want to add something that I forgot.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2962.43">The most… one of the most important things is…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2966.6">Whenever activity occurs on the website, you'll get an email</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2973.13">the way it is set up today, you get one email per day, sort of at the end of the day, that summarizes or lets you know something new was added. And if you click on that email, it will take you right into the website, wherever that activity occurred. So.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2989.15">Much like Facebook and Instagram, you know, the web… this website, this web tool is capable of</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="2996.8">bugging you to remind you that there's stuff you need to go see. And we can tune that so the emails can come out</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3005.96">closer to real time, or once a day, or I think there's even a once-a-week option. And I'm hoping that as</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3016.67">Some of you start experimenting with this, and playing with it, and posting things, and getting notices that we can fine-tune that</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3024.03">to the right level that it's not obnoxious, but it lets you keep up with what's going. Because some of the conversations are fun to have right in the moment, and some of them</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3034.72">you know, our archival things where it doesn't matter the immediate turnaround time. So.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3041.08">We can tweak that. There's a… it's an insanely configurable site, so almost anything that you ask, we can figure out how to do. But I haven't tried to pre-figure out a lot of it. I'm just gonna… let's just try it and see what happens, and…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3055.08">If it's… if it's too… too invasive, we can tone it down. If you're missing things, we can ramp it up. so, you just have to talk to me and… and or Kari. Also, you can create your own spaces, and I have a lot of… there's a lot of control over what</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3076.08">capabilities each user has in terms of creating, commenting, or deleting things, and if you find that there's something you want to do, and it's not letting you do it, just let me know, and I can figure out why. Kari had some things she was trying to do, and</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3090.34">I just had to make her an administrator of the space, and it was straightforward and easy to do. So it's…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3096.72">We're, we're your IT support staff, me and Kari, so… and we're recruiting others, anybody else who wants to learn the insides, ins and outs of it, happy to have more admins, once we get moving on it.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3113.36">Eleanor</span> <span class="timestamp" data-time="3113.36">[ 51:53 ]</span>
+        <p>
+          <span class=speakertext data-time="3113.36">Ugh.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3113.89">Spencer</span> <span class="timestamp" data-time="3113.89">[ 51:53 ]</span>
+        <p>
+          <span class=speakertext data-time="3113.89">Well, goodness.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3120.27">David McCallie</span> <span class="timestamp" data-time="3120.27">[ 52:00 ]</span>
+        <p>
+          <span class=speakertext data-time="3120.27">What's that?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3121.92">Eleanor</span> <span class="timestamp" data-time="3121.92">[ 52:01 ]</span>
+        <p>
+          <span class=speakertext data-time="3121.92">Is that me?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3124.78">Tom 4</span> <span class="timestamp" data-time="3124.78">[ 52:04 ]</span>
+        <p>
+          <span class=speakertext data-time="3124.78">I think Spencer's… Spencer's microphone's not working.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3127.89">Alice McCallie</span> <span class="timestamp" data-time="3127.89">[ 52:07 ]</span>
+        <p>
+          <span class=speakertext data-time="3127.89">Yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3128.46">Eleanor</span> <span class="timestamp" data-time="3128.46">[ 52:08 ]</span>
+        <p>
+          <span class=speakertext data-time="3128.46">Okay.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3130.03">Spencer</span> <span class="timestamp" data-time="3130.03">[ 52:10 ]</span>
+        <p>
+          <span class=speakertext data-time="3130.03">Okay.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3132.75">Eleanor</span> <span class="timestamp" data-time="3132.75">[ 52:12 ]</span>
+        <p>
+          <span class=speakertext data-time="3132.75">Well, I wanted to…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3134.58">I wanted to ask, like, when… when is the start date? I mean, it would work… it would seem to be really nice if we… if a bunch of us, anyway, could get on…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3146.41">At a similar time, so that we kind of test it out.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3150.13">But I also know that</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3152.74">myself, and maybe others my generation, are going to be hesitant to do it right away. So maybe we could have a,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3164.58">kind of an online, talk… talk us into it, you know, talk us through it kind of thing? I don't know. Anyway, what are your thoughts on when do we get started?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3177.78">Kari McCallie</span> <span class="timestamp" data-time="3177.78">[ 52:57 ]</span>
+        <p>
+          <span class=speakertext data-time="3177.78">David, you're muted.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3181.4">David McCallie</span> <span class="timestamp" data-time="3181.4">[ 53:01 ]</span>
+        <p>
+          <span class=speakertext data-time="3181.4">Thank you. I'm ready to send out invitations, you know, this week.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3187.42">And what I was going to do is… so, just to reiterate, I have to invite you with a link, and it'll show up in your email box. Actually, let me show you that, because it's a little bit of a… I'm going to share my screen again.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3206.82">Is that what I want to do?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3213.17">What screen am I going to share here? I'll do… I'll share this one. Okay,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3217.92">So I'm gonna log out.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3225.9">Oops, down here, yes. Okay, I'm gonna log out.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3228.56">And then… so I'm back in my email box. Now, this is just my ordinary email box, and you'll see on… this is Gmail, but a lot of you use a similar</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3239.26">email system, the emails come in and they get segregated by your email system. So I've got primary emails, promotions, social, and updates.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3248.59">And I have a second one called Forms. And when you first are getting emails from the HumHub site.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3256.04">Gmail and most email providers won't treat them as primary, because it's from a site that you don't normally interact with. So mine actually land in something called promotions, and you can see</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3268.67">the top line here is there's an email from McCallie Family Stories. You've been invited to join McCallie Family Stories, and when you click on that, you'll see an email that says, you got an invite.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3281.52">It's sign up now. So when you click that, it'll walk you through the sign-up process. So, the message here is, if I tell you</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3291.42">that I've sent out invitations, and you can't find your invitation, it's probably because it didn't land in your primary inbox, it landed in either promotions, or social, or updates.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3302.64">Worst case, and not out of the question, it lands in your spam folder. So, here's my spam folder. Fortunately.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3310.79">it didn't land there, but until the email system comes to trust that that's a meaningful email site, it might not land in your main inbox. Once I announce that I've sent the invitations out, if you can't find yours, let me know, and I'll…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3327.8">Send it again, or we'll figure out where it went.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3331.56">I will apologize to several of you. I had told you I was inviting you, and you couldn't find the invites, and it turns out the reason for that is the email system that I use was down, and I didn't realize it. So, if you're not getting the invite, it could be my fault, but it probably means it just landed in one of your non-primary inboxes.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3351.65">but then, so we'll be able to find it. And then I'm gonna have some screenshots in the invit… that'll go out before the invitations that just reiterate the process that I walked you through of signing in.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3365.71">One thing I forgot to point out is when you first sign in, a good thing to do is to click this little image up in the upper right-hand circle and go to My Profile.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3377.3">And this profile, lets you fill in a ton of stuff about yourself, including uploading your image.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3385.42">And so all you do is you click on this little… it'll be… it'll look like an upload symbol. You click on that photograph, which will just have a silhouette, and find a photograph that you like, and upload it, and that'll help the rest of us</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3399.26">Sort of see who you are.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3401.09">And then in your account itself, you can provide as much information or as little information as you want, including birthdays and things like that. Obviously, Kari has all that stuff in the genealogy. But you can fill out a ton of stuff about yourself. Nothing is required, but you could put your Facebook</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3420.65">handle and other things like that in there, if you want to. I will say that your username… the usernames across the system have to be</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3431.3">unique. So, I have the username David, founder's prerogative. Sorry, other Davids, you're gonna have to pick something</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3441.96">else, like David Tillett, or David… whatever. I don't guess we only have two Davids, but the Eleanors and the Katharines, first come, first serve, so get in there early.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3454.9">And, and grab your, grab your name.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3458.98">Your email, of course, is unique, that's not a problem, but your username, you know.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3463.88">If you want to be L&D, you know, you can grab it. Something that helps us know who you are, and it's first come, first serve.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3472.01">But I can fix it if something gets mixed up.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3475.14">So, Eleanor, I think you talked about, like, having the notion of an online session where we navigate the process. I'm happy to do that.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3484.54">But I was… I'm prepared to send out the invites and get this thing rolling, you know.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3489.48">this week.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3492.28">You're muted, Eleanor.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3494.8">Eleanor</span> <span class="timestamp" data-time="3494.8">[ 58:14 ]</span>
+        <p>
+          <span class=speakertext data-time="3494.8">Okay, why don't we try that? You send it out, let's see how many of us are successful. You'll know that pretty soon.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3501.99">And then, those who aren't might need a little tutorial, and that would be great, because it'd be good to get at least all of us who are on this call today, get us up and running, and that would get us started, at least.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3519.0">David McCallie</span> <span class="timestamp" data-time="3519.0">[ 58:39 ]</span>
+        <p>
+          <span class=speakertext data-time="3519.0">And, you know, forgive me, but I'll bug you about it. You know, if after a few weeks, there's some of you that haven't had a chance to connect, I may send out that invite again. So don't… you won't be left behind.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3533.55">We will… we will bug you.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3537.72">Alice McCallie</span> <span class="timestamp" data-time="3537.72">[ 58:57 ]</span>
+        <p>
+          <span class=speakertext data-time="3537.72">This is a massive amount of work. Thank you all very much.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3541.74">Really?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3542.07">Tom McCallie</span> <span class="timestamp" data-time="3542.07">[ 59:02 ]</span>
+        <p>
+          <span class=speakertext data-time="3542.07">I agree.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3544.38">Kari McCallie</span> <span class="timestamp" data-time="3544.38">[ 59:04 ]</span>
+        <p>
+          <span class=speakertext data-time="3544.38">Yeah, I just want to acknowledge David. David has done a massive amount of work to get this to the state that it's in, and</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3553.9">you know, I think was maybe a little hesitant at first to put in that effort, so we all have to use the site. That's your guilt trip for today.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3563.7">David McCallie</span> <span class="timestamp" data-time="3563.7">[ 59:23 ]</span>
+        <p>
+          <span class=speakertext data-time="3563.7">Is that…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3565.3">Kari McCallie</span> <span class="timestamp" data-time="3565.3">[ 59:25 ]</span>
+        <p>
+          <span class=speakertext data-time="3565.3">I mean, I know he enjoys it, and it's like a passion project for him, but, I'm gonna be your guilt tripper.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3575.03">Tom McCallie</span> <span class="timestamp" data-time="3575.03">[ 59:35 ]</span>
+        <p>
+          <span class=speakertext data-time="3575.03">here.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3575.42">David McCallie</span> <span class="timestamp" data-time="3575.42">[ 59:35 ]</span>
+        <p>
+          <span class=speakertext data-time="3575.42">I'm…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3575.77">Tom McCallie</span> <span class="timestamp" data-time="3575.77">[ 59:35 ]</span>
+        <p>
+          <span class=speakertext data-time="3575.77">Not insignificant.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3577.63">David McCallie</span> <span class="timestamp" data-time="3577.63">[ 59:37 ]</span>
+        <p>
+          <span class=speakertext data-time="3577.63">Yeah, no kidding. All those details, amazing. I mean, I'm doing it for, you know, my children. They won't know this stuff if we don't do this, and I just think it's…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3590.66">I don't, you know, maybe it's…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3593.01">selfish thoughts of somebody who's not going to be around that much longer. You don't want it to just dissipate into the ether. You want it to be remembered.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3602.62">Allen McCallie</span> <span class="timestamp" data-time="3602.62">[ 01:00:02 ]</span>
+        <p>
+          <span class=speakertext data-time="3602.62">I would suggest, this is probably a little ambitious, but…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3607.8">An assignment to accelerate everyone's engagement with the system.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3614.46">Would be to challenge everyone in a fun way. Find one thing, two things, three things that you think might belong on the site.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3623.65">And then we gather again for one of these Zoom sessions.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3627.26">And whoever's turn it is explains why they think this ought to be on the site, and David and Kari navigate us through putting it on the site. And everybody hears the story.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3636.93">Everybody sees how it works, and the site gets populated.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3641.88">that would take…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3643.8">maybe, perhaps more than one Zoom session, but every time we start digressing down those rabbit holes, we always laugh and have fun, so it would be… it'd be a fun, fun way to do it.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3654.44">Eleanor</span> <span class="timestamp" data-time="3654.44">[ 01:00:54 ]</span>
+        <p>
+          <span class=speakertext data-time="3654.44">Well, Allen, in fact, if you will,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3657.93">focus your comments on photos, we can do that next,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3663.06">next month, next Zoom, because we're… we have already, planned to do that around photos, and that'd be a perfect way</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3671.45">So if you have a photo that you think needs to be on the site.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3676.07">we can do what you just said. Does that make sense?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3679.24">Allen McCallie</span> <span class="timestamp" data-time="3679.24">[ 01:01:19 ]</span>
+        <p>
+          <span class=speakertext data-time="3679.24">Yes, it does, and maybe a slightly…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3684.95">Off-the-beaten-path photo that we would all look for is a photo of our wedding party.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3690.38">We have plenty of Christmas photos that show the family in large, but I don't think there's a photo of</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3697.98">Of my wedding anywhere. Put it on the site.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3703.98">And any kind of…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3705.9">David McCallie</span> <span class="timestamp" data-time="3705.9">[ 01:01:45 ]</span>
+        <p>
+          <span class=speakertext data-time="3705.9">Any kind of archival stuff,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3709.24">that, you know, exists already, but it's gonna dissipate… disappear, that's good, too. We don't have to create things that are new, like, you know, I…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3719.37">found…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3720.54">online things, like an obituary or something, and you can just take it out of the old newspaper and</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3726.39">Worst case, the AI will transcribe it for you, and then I can post it in, and preserve it here, so you're not dependent on the sites that manage obituaries, which are, you know, tend to go away.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3740.65">Allen McCallie</span> <span class="timestamp" data-time="3740.65">[ 01:02:20 ]</span>
+        <p>
+          <span class=speakertext data-time="3740.65">Totally, coincidentally, perfect testing of the system.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3745.65">Alice and I, last night, were at a party that Lynn Winningham throws every Chinese New Year.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3753.61">And, probably two-thirds of the attendees at the party are McCallie faculty, present and retired. It's not grass and,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3764.41">david Hughes, and…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3767.49">Alice McCallie</span> <span class="timestamp" data-time="3767.49">[ 01:02:47 ]</span>
+        <p>
+          <span class=speakertext data-time="3767.49">Bill Jamison.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3768.91">Allen McCallie</span> <span class="timestamp" data-time="3768.91">[ 01:02:48 ]</span>
+        <p>
+          <span class=speakertext data-time="3768.91">Cleve Latham, and just… just dozens of people, John McCall, Isabelle McCall, that we don't see but once a year.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3777.06">And as we were walking out, our friend Rob Taylor, who was a couple years behind me at McCallie.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3783.51">Said, hey, stop here and look at this, and he pulled out his father's</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3789.21">Vanderbilt Law School yearbook for the year that his father graduated, and he started walking us through pictures of his father's Vanderbilt class, and it included Rob's father, his mother, and maybe that was not just law school. No, this was Vanderbilt College, not law school.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3807.99">And then he said, and here is Thomas Spencer McCallie.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3811.86">Who's that?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3813.97">And we… and Kathy and Ellis were sitting there, and we sort of wrestled around with it and came up with the right answer, but it was hard.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3825.22">and we had to think who… who was Thomas Spencer McCallie's father?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3832.0">And why do we not know Him better? And, we… we had to look it up when we got home. And that was just an interesting exercise for all that we do and all the genealogy we all know and have gathered. It's… it's big stuff. There's a lot of it out there.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3850.9">Kari McCallie</span> <span class="timestamp" data-time="3850.9">[ 01:04:10 ]</span>
+        <p>
+          <span class=speakertext data-time="3850.9">Is this Thomas Spencer?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3853.53">Allen McCallie</span> <span class="timestamp" data-time="3853.53">[ 01:04:13 ]</span>
+        <p>
+          <span class=speakertext data-time="3853.53">No, his grandson. His grandson?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3856.77">Kari McCallie</span> <span class="timestamp" data-time="3856.77">[ 01:04:16 ]</span>
+        <p>
+          <span class=speakertext data-time="3856.77">Oh, I don't have him in the family tree.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3858.92">Allen McCallie</span> <span class="timestamp" data-time="3858.92">[ 01:04:18 ]</span>
+        <p>
+          <span class=speakertext data-time="3858.92">That's right.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3859.4">Kari McCallie</span> <span class="timestamp" data-time="3859.4">[ 01:04:19 ]</span>
+        <p>
+          <span class=speakertext data-time="3859.4">Dark.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3862.68">Allen McCallie</span> <span class="timestamp" data-time="3862.68">[ 01:04:22 ]</span>
+        <p>
+          <span class=speakertext data-time="3862.68">His son was Thomas Crane McCallie, I believe, and then Thomas Crane had two children, one of whom we all know as Gladys, I think, and the other was Thomas Spencer, who moved away to Roanoke.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3874.71">And, kathy shared her memory. She said it has always been Said in my family that</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3884.96">And I can't remember who it was, was that, they forbade my father from coming to their funeral.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3892.49">And that was somebody saying, Dr. Spence was not allowed, Uncle Spence was not allowed to come to the funeral.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3899.69">David McCallie</span> <span class="timestamp" data-time="3899.69">[ 01:04:59 ]</span>
+        <p>
+          <span class=speakertext data-time="3899.69">Helen, you're nodding your head. Do you know something?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3902.24">Allen McCallie</span> <span class="timestamp" data-time="3902.24">[ 01:05:02 ]</span>
+        <p>
+          <span class=speakertext data-time="3902.24">You're muted.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3908.64">Helen</span> <span class="timestamp" data-time="3908.64">[ 01:05:08 ]</span>
+        <p>
+          <span class=speakertext data-time="3908.64">Aunt Gladys, in her later years, was very strange.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3913.72">And… A bunch of people were told not to come to her funeral.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3919.48">Spencer</span> <span class="timestamp" data-time="3919.48">[ 01:05:19 ]</span>
+        <p>
+          <span class=speakertext data-time="3919.48">go to a local porter.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3922.65">Helen</span> <span class="timestamp" data-time="3922.65">[ 01:05:22 ]</span>
+        <p>
+          <span class=speakertext data-time="3922.65">Maybe Spencer remembers.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3925.29">Allen McCallie</span> <span class="timestamp" data-time="3925.29">[ 01:05:25 ]</span>
+        <p>
+          <span class=speakertext data-time="3925.29">He does, but his microphone is misbehaving.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3927.79">Helen</span> <span class="timestamp" data-time="3927.79">[ 01:05:27 ]</span>
+        <p>
+          <span class=speakertext data-time="3927.79">Oh, oh no.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3930.27">Allen McCallie</span> <span class="timestamp" data-time="3930.27">[ 01:05:30 ]</span>
+        <p>
+          <span class=speakertext data-time="3930.27">Anyway, it was… it was amusing and interesting.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3933.59">Kari McCallie</span> <span class="timestamp" data-time="3933.59">[ 01:05:33 ]</span>
+        <p>
+          <span class=speakertext data-time="3933.59">I think Ellen also had a question or a comment at some point.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3939.0">I saw a hand up.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3942.38">Helen</span> <span class="timestamp" data-time="3942.38">[ 01:05:42 ]</span>
+        <p>
+          <span class=speakertext data-time="3942.38">Yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3942.95">Ellen McCallie</span> <span class="timestamp" data-time="3942.95">[ 01:05:42 ]</span>
+        <p>
+          <span class=speakertext data-time="3942.95">Yeah, I did something interesting. I raised my hand. Not very typical for me, at least.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3948.72">I had two questions. One,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3953.47">I… Allen sent… I was unable to go to Uncle David's, funeral, and I don't… I don't know where in the world I was, but, I really appreciated watching the video, or the DVD.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3967.34">Something like that, does that eventually get up? That's one question. And then the other question is, I think Doug and I were sent…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3975.6">In the 80s, Doug and I were sent, audio</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3980.24">from Christmas, when we were, in Asia.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3984.37">Separately, but I know we, we, we talked about the fact that we both got, Audio.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="3992.18">Is that something that I should look for and try to put up?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="3997.66">David McCallie</span> <span class="timestamp" data-time="3997.66">[ 01:06:37 ]</span>
+        <p>
+          <span class=speakertext data-time="3997.66">The answer is, yeah, we can put video and audio, either put it directly or link to it.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4006.26">it a little bit depends on just some technical concerns, is the best way to do it. It's probably not something that you should try to do, at least initially by yourself. Let me know that you have something, and I'll figure out the best way to do it. And the reason is.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4020.89">some of the things, like a video, like these Zoom videos are, you know, approaching a gigabyte in size, and so I put them on a separate</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4029.6">service that's more optimized for super large files, and then I link to them instead of putting them in the HumHub system. So there's just little… little things that I have to worry about behind the scenes, but</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4040.97">to the user of the system, it'll just be a click, and it would be there. So, we can certainly… we can certainly handle it.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4047.64">But I… I may have to do some… some tricks.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4051.25">Helen?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4052.67">Or Ellen? Helen?</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4054.64">Helen</span> <span class="timestamp" data-time="4054.64">[ 01:07:34 ]</span>
+        <p>
+          <span class=speakertext data-time="4054.64">Yeah, I have, oh.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4058.64">David McCallie</span> <span class="timestamp" data-time="4058.64">[ 01:07:38 ]</span>
+        <p>
+          <span class=speakertext data-time="4058.64">Nope, the other way.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4063.49">Helen</span> <span class="timestamp" data-time="4063.49">[ 01:07:43 ]</span>
+        <p>
+          <span class=speakertext data-time="4063.49">No. Now I'm.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4064.87">David McCallie</span> <span class="timestamp" data-time="4064.87">[ 01:07:44 ]</span>
+        <p>
+          <span class=speakertext data-time="4064.87">Yep. Yay!</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4068.23">Helen</span> <span class="timestamp" data-time="4068.23">[ 01:07:48 ]</span>
+        <p>
+          <span class=speakertext data-time="4068.23">I have a number of cassette tapes, like Ellen is saying.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4073.02">from when… from Austria, and we have</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4077.8">All of our aunts and uncles, freddie…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4083.06">and Alex putting the tape recorder on the dumb waiter in the dining hall, and then seeing…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4092.58">Seeing who could get down those funny steps first.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4096.77">to capture it, I mean… They're… it's crazy.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4102.59">David McCallie</span> <span class="timestamp" data-time="4102.59">[ 01:08:22 ]</span>
+        <p>
+          <span class=speakertext data-time="4102.59">Well, what we can try to do on that, and I've done this, and it works pretty well, is if you can get the audio</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4111.229">digitized, in other words, get the recording itself, the sounds, online, it's just as a waveform file, then I can run that through the AI, and it'll transcribe it.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4121.99">And then it becomes something you can read and or listen to, and you can search, and things like that, and the AI transcription tools are remarkably good now, and they get McCallie spelled wrong, but, you know, just go through and correct, because they don't know how to spell McCallie.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4138.529">But how we spell it, anyway. But anyway, that's doable, but it has to get digitized first, and</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4145.569">we can work on finding… coming up with a way to do that, but I think that would be fun stuff to do. I mean, that would be great.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4153.029">Ellen McCallie</span> <span class="timestamp" data-time="4153.029">[ 01:09:13 ]</span>
+        <p>
+          <span class=speakertext data-time="4153.029">So, Tanta, your responsibility is to find the cassette, and then let me know you have found the cassette. Then your responsibility is over.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4163.01">Allen McCallie</span> <span class="timestamp" data-time="4163.01">[ 01:09:23 ]</span>
+        <p>
+          <span class=speakertext data-time="4163.01">Okay, smart aleck. Well, okay!</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4167.31">Ellen McCallie</span> <span class="timestamp" data-time="4167.31">[ 01:09:27 ]</span>
+        <p>
+          <span class=speakertext data-time="4167.31">I'll give them to you, then, and let you handle them.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4170.92">Allen McCallie</span> <span class="timestamp" data-time="4170.92">[ 01:09:30 ]</span>
+        <p>
+          <span class=speakertext data-time="4170.92">I can't come to her funeral.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4174.95">Ellen McCallie</span> <span class="timestamp" data-time="4174.95">[ 01:09:34 ]</span>
+        <p>
+          <span class=speakertext data-time="4174.95">But I can babysit her cat!</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4177.21">Allen McCallie</span> <span class="timestamp" data-time="4177.21">[ 01:09:37 ]</span>
+        <p>
+          <span class=speakertext data-time="4177.21">Yeah, that's true.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4180.99">David McCallie</span> <span class="timestamp" data-time="4180.99">[ 01:09:40 ]</span>
+        <p>
+          <span class=speakertext data-time="4180.99">the record button.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4182.609">Allen McCallie</span> <span class="timestamp" data-time="4182.609">[ 01:09:42 ]</span>
+        <p>
+          <span class=speakertext data-time="4182.609">Ellen, I just want to say Smart Alec is my brother.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4194.13">Helen</span> <span class="timestamp" data-time="4194.13">[ 01:09:54 ]</span>
+        <p>
+          <span class=speakertext data-time="4194.13">Okay, I have thought about finding a place to take the tapes and have them</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4201.16">So, what I'm wanting to do is have them digitized.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4205.17">David McCallie</span> <span class="timestamp" data-time="4205.17">[ 01:10:05 ]</span>
+        <p>
+          <span class=speakertext data-time="4205.17">Yeah, yeah, and you can do that… you can do that with old VHS tapes, too, if you have a video. In fact, it's a really good idea to have a commercial service do that, because those things get really fragile.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4217.36">Helen</span> <span class="timestamp" data-time="4217.36">[ 01:10:17 ]</span>
+        <p>
+          <span class=speakertext data-time="4217.36">Okay. And if you don't…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4219.48">David McCallie</span> <span class="timestamp" data-time="4219.48">[ 01:10:19 ]</span>
+        <p>
+          <span class=speakertext data-time="4219.48">treat them properly before you start, it'll just snap the tape, and you'll never have it, so…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4224.95">Helen</span> <span class="timestamp" data-time="4224.95">[ 01:10:24 ]</span>
+        <p>
+          <span class=speakertext data-time="4224.95">Okay.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4225.35">David McCallie</span> <span class="timestamp" data-time="4225.35">[ 01:10:25 ]</span>
+        <p>
+          <span class=speakertext data-time="4225.35">We'll get to a professional and have them turn it into a digital video, and then we can work on it from there.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4233.37">McCallie’s</span> <span class="timestamp" data-time="4233.37">[ 01:10:33 ]</span>
+        <p>
+          <span class=speakertext data-time="4233.37">That's what I did with that, little bit of Mother Kay's voice that we heard. That was…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4239.4">Actually,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4240.93">a 78 phonograph, an LP, that I took to a place that they had recorded for that… that night in 1955, or whenever it was, her celebration, so I took that and had it digitized, so,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4254.57">I still have the LP, too, but they are around, and it's doable, so be it even a phonograph, or your old cassette tapes, or</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4263.64">any of those things, it… it is… it's pretty easy to do.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4267.44">Helen</span> <span class="timestamp" data-time="4267.44">[ 01:11:07 ]</span>
+        <p>
+          <span class=speakertext data-time="4267.44">And it was in Chattanooga.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4269.59">McCallie’s</span> <span class="timestamp" data-time="4269.59">[ 01:11:09 ]</span>
+        <p>
+          <span class=speakertext data-time="4269.59">Yeah. Now, this was several years ago. I think it was down in Rossville, actually. I'm sure there are better places now, but I have had that for a long time.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4276.67">Helen</span> <span class="timestamp" data-time="4276.67">[ 01:11:16 ]</span>
+        <p>
+          <span class=speakertext data-time="4276.67">Okay.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4286.65">Eleanor</span> <span class="timestamp" data-time="4286.65">[ 01:11:26 ]</span>
+        <p>
+          <span class=speakertext data-time="4286.65">Jack, what would I Google if I wanted to find… A place to take…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4292.8">something, and digitize it. What… What would I look for?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4299.15">just type in, find me a place where I can take something and digitize it, and it'll tell you. I bet.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4305.69">McCallie’s</span> <span class="timestamp" data-time="4305.69">[ 01:11:45 ]</span>
+        <p>
+          <span class=speakertext data-time="4305.69">I bet your… I bet your interaction with the photo doctor, he would probably have, he would… he would… your, discussion with your friend that we were talking about offline the other day, the photo doctor, that, he would probably know.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4318.82">Allen McCallie</span> <span class="timestamp" data-time="4318.82">[ 01:11:58 ]</span>
+        <p>
+          <span class=speakertext data-time="4318.82">Tracy can ask.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4320.16">McCallie’s</span> <span class="timestamp" data-time="4320.16">[ 01:12:00 ]</span>
+        <p>
+          <span class=speakertext data-time="4320.16">Yeah, yeah.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4321.95">Eleanor</span> <span class="timestamp" data-time="4321.95">[ 01:12:01 ]</span>
+        <p>
+          <span class=speakertext data-time="4321.95">Okay. Alright, that's great.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4323.53">David McCallie</span> <span class="timestamp" data-time="4323.53">[ 01:12:03 ]</span>
+        <p>
+          <span class=speakertext data-time="4323.53">Yeah, it's a good idea to… if you… if you… if there's somebody that you know, that's better than some of these… there's a ton of third-party services where you can ship it off in a box, and they'll digitize it, but I'm not sure I would trust</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4335.57">them with something really important. A local person's probably a better choice.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4341.44">Eleanor</span> <span class="timestamp" data-time="4341.44">[ 01:12:21 ]</span>
+        <p>
+          <span class=speakertext data-time="4341.44">Okay.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4342.8">Well, any, anything else pop up, y'all?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4348.65">I'm just gonna tell us what's… what's ahead. Next… in March, we're gonna do…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4355.81">looking at photographs, and so I think this will fit right in. We'll just, we'll just segue right into it from… from today's, presentation, and make, we'll, we'll,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4369.75">make our… website, come alive, And then see what,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4376.31">Kari can do to… to link it, so we know</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4380.52">How we're related to the people in the picture.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4383.83">I imagine we'll do a few of those ahead of time, so that we'll have them ready to show, and so if any of you</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4393.63">want to be engaged in that, please send us something or let us know that you're interested in that.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4401.54">Helen</span> <span class="timestamp" data-time="4401.54">[ 01:13:21 ]</span>
+        <p>
+          <span class=speakertext data-time="4401.54">I wonder if Kari is gonna have to retire</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4406.54">So she can keep doing all this stuff.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4412.0">Kari McCallie</span> <span class="timestamp" data-time="4412.0">[ 01:13:32 ]</span>
+        <p>
+          <span class=speakertext data-time="4412.0">Yep, yes. We are still working!</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4414.29">I do. I do still work. David thinks there might be a way to automate, like, the name… taking the names and making the links into Gramps, but I'm fine doing it for right now. It's good, I go through the website. I… I have not done the latest Zoom Fest. I have fallen down on the job, so that's my next project.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4434.9">Margaret Kolm</span> <span class="timestamp" data-time="4434.9">[ 01:13:54 ]</span>
+        <p>
+          <span class=speakertext data-time="4434.9">Anyway, this genealogy looks like so much fun, being able to,</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4440.23">Find all your second cousins, or whatever.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4444.74">Kari McCallie</span> <span class="timestamp" data-time="4444.74">[ 01:14:04 ]</span>
+        <p>
+          <span class=speakertext data-time="4444.74">Yes, if you're a very detail-oriented person, which I am, and you like puzzles, because sometimes it's like putting together a puzzle to find people in the past, especially, this part was very easy, because I have everyone… pretty much everyone who's in there is… exists.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4462.46">Right now, and so I have primary sources for everybody. But when you start going back a little bit, it becomes a little bit of a puzzle in trying to use the secondary documents, like birth certificates and obituaries and things like that, so…</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4474.79">It's been fun.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4478.98">Eleanor</span> <span class="timestamp" data-time="4478.98">[ 01:14:38 ]</span>
+        <p>
+          <span class=speakertext data-time="4478.98">Well, I thank you all for coming. This was great, and David and Kari, we thank you tremendously for… I thought your presentation today was very clear.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4488.06">Yeah.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4490.23">And.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4491.47">Spencer</span> <span class="timestamp" data-time="4491.47">[ 01:14:51 ]</span>
+        <p>
+          <span class=speakertext data-time="4491.47">So, but…</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4494.29">Eleanor</span> <span class="timestamp" data-time="4494.29">[ 01:14:54 ]</span>
+        <p>
+          <span class=speakertext data-time="4494.29">this doesn't even touch the work you've done over the last two years.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4500.06">I've been astounded, at how both of you have applied yourself to this.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4506.2">So, all right, everybody, stay well.</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4509.76">Stay warm, And stay in touch!</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4517.24">David McCallie</span> <span class="timestamp" data-time="4517.24">[ 01:15:17 ]</span>
+        <p>
+          <span class=speakertext data-time="4517.24">Bye!</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4518.78">Allen McCallie</span> <span class="timestamp" data-time="4518.78">[ 01:15:18 ]</span>
+        <p>
+          <span class=speakertext data-time="4518.78">*****</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4520.18">Helen</span> <span class="timestamp" data-time="4520.18">[ 01:15:20 ]</span>
+        <p>
+          <span class=speakertext data-time="4520.18">A finishing!</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4521.61">Jim McCallie</span> <span class="timestamp" data-time="4521.61">[ 01:15:21 ]</span>
+        <p>
+          <span class=speakertext data-time="4521.61">How for you to Sean?</span>
+        </p>
+        <p>
+          <span class=speakertext data-time="4525.8">Hey, we say ciao here.</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4527.92">Helen</span> <span class="timestamp" data-time="4527.92">[ 01:15:27 ]</span>
+        <p>
+          <span class=speakertext data-time="4527.92">Oh, oh, you're Italian!</span>
+        </p>
+      </div>
+      <div class="speaker-section">
+        <span class=speakername data-time="4531.04">Jim McCallie</span> <span class="timestamp" data-time="4531.04">[ 01:15:31 ]</span>
+        <p>
+          <span class=speakertext data-time="4531.04">Ciao, Helen!</span>
+        </p>
+      </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript to enable clickable transcript timestamps -->
+  <script>
+
+    // Video error handling and debugging
+    const video = document.getElementById('zoomVideo');
+    const videoError = document.getElementById('video-error');
+    
+    video.addEventListener('error', function(e) {
+      console.error('Video error:', e);
+      if (video.error) {
+        console.error('Error code:', video.error.code);
+        console.error('Error message:', video.error.message);
+        // Show friendly error message
+        videoError.style.display = 'block';
+      }
+    });
+    
+    video.addEventListener('loadstart', function() {
+      console.log('Video loading started');
+      videoError.style.display = 'none';
+    });
+    
+    video.addEventListener('canplay', function() {
+      console.log('Video can play');
+      videoError.style.display = 'none';
+    });
+    
+    video.addEventListener('loadedmetadata', function() {
+      console.log('Video metadata loaded');
+    });
+
+    // Search functionality
+    let searchMatches = [];
+    let currentMatchIndex = -1;
+    const searchInput = document.getElementById('search-input');
+    const prevButton = document.getElementById('prev-button');
+    const nextButton = document.getElementById('next-button');
+    const searchInfo = document.getElementById('search-info');
+    const transcriptDiv = document.querySelector('.transcript');
+
+    function clearHighlights() {
+      const highlights = transcriptDiv.querySelectorAll('.search-highlight');
+      highlights.forEach(highlight => {
+        const parent = highlight.parentNode;
+        parent.replaceChild(document.createTextNode(highlight.textContent), highlight);
+        parent.normalize();
+      });
+      searchMatches = [];
+      currentMatchIndex = -1;
+    }
+
+    function highlightMatches(searchTerm) {
+      if (!searchTerm || searchTerm.length < 2) {
+        clearHighlights();
+        searchInfo.textContent = '';
+        prevButton.disabled = true;
+        nextButton.disabled = true;
+        return;
+      }
+
+      clearHighlights();
+      const speakerTextElements = transcriptDiv.querySelectorAll('.speakertext');
+      const searchRegex = new RegExp(searchTerm.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&'), 'gi');
+
+      speakerTextElements.forEach(element => {
+        const originalText = element.textContent;
+        const matches = [...originalText.matchAll(searchRegex)];
+        
+        if (matches.length > 0) {
+          let lastIndex = 0;
+          const fragment = document.createDocumentFragment();
+          
+          matches.forEach(match => {
+            // Add text before match
+            if (match.index > lastIndex) {
+              fragment.appendChild(document.createTextNode(originalText.substring(lastIndex, match.index)));
+            }
+            // Add highlighted match
+            const mark = document.createElement('span');
+            mark.className = 'search-highlight';
+            mark.textContent = match[0];
+            fragment.appendChild(mark);
+            searchMatches.push(mark);
+            lastIndex = match.index + match[0].length;
+          });
+          
+          // Add remaining text
+          if (lastIndex < originalText.length) {
+            fragment.appendChild(document.createTextNode(originalText.substring(lastIndex)));
+          }
+          
+          element.textContent = '';
+          element.appendChild(fragment);
+        }
+      });
+
+      if (searchMatches.length > 0) {
+        currentMatchIndex = 0;
+        updateCurrentMatch();
+        prevButton.disabled = false;
+        nextButton.disabled = false;
+      } else {
+        searchInfo.textContent = 'No matches';
+        prevButton.disabled = true;
+        nextButton.disabled = true;
+      }
+    }
+
+    function updateCurrentMatch() {
+      searchMatches.forEach((match, index) => {
+        if (index === currentMatchIndex) {
+          match.classList.add('current');
+          match.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          match.classList.remove('current');
+        }
+      });
+      searchInfo.textContent = `${currentMatchIndex + 1} of ${searchMatches.length}`;
+    }
+
+    searchInput.addEventListener('input', (e) => {
+      highlightMatches(e.target.value);
+    });
+
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        if (e.shiftKey) {
+          prevMatch();
+        } else {
+          nextMatch();
+        }
+      }
+    });
+
+    function nextMatch() {
+      if (searchMatches.length > 0) {
+        currentMatchIndex = (currentMatchIndex + 1) % searchMatches.length;
+        updateCurrentMatch();
+      }
+    }
+
+    function prevMatch() {
+      if (searchMatches.length > 0) {
+        currentMatchIndex = (currentMatchIndex - 1 + searchMatches.length) % searchMatches.length;
+        updateCurrentMatch();
+      }
+    }
+
+    nextButton.addEventListener('click', nextMatch);
+    prevButton.addEventListener('click', prevMatch);
+
+    // Auto-scroll functionality
+    let autoScrollEnabled = true;
+    let currentActiveElement = null;
+    let userIsScrolling = false;
+    let scrollTimeout = null;
+    const autoscrollToggle = document.getElementById('autoscroll-toggle');
+    const transcriptContainer = document.getElementById('transcript-container');
+
+    // Toggle auto-scroll on/off
+    autoscrollToggle.addEventListener('click', () => {
+      autoScrollEnabled = !autoScrollEnabled;
+      if (autoScrollEnabled) {
+        autoscrollToggle.textContent = 'Auto-Scroll: ON';
+        autoscrollToggle.classList.remove('disabled');
+        autoscrollToggle.classList.add('enabled');
+      } else {
+        autoscrollToggle.textContent = 'Auto-Scroll: OFF';
+        autoscrollToggle.classList.remove('enabled');
+        autoscrollToggle.classList.add('disabled');
+      }
+    });
+
+    // Detect when user manually scrolls
+    transcriptContainer.addEventListener('scroll', () => {
+      if (autoScrollEnabled) {
+        userIsScrolling = true;
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+          userIsScrolling = false;
+        }, 2000); // Re-enable auto-scroll after 2 seconds of no scrolling
+      }
+    });
+
+    // Sync transcript with video playback
+    video.addEventListener('timeupdate', () => {
+      if (!autoScrollEnabled || userIsScrolling) return;
+      
+      const currentTime = video.currentTime;
+      const allTextElements = transcriptContainer.querySelectorAll('.speakertext');
+      
+      // Find the current active segment
+      let activeElement = null;
+      for (let i = allTextElements.length - 1; i >= 0; i--) {
+        const elementTime = parseFloat(allTextElements[i].getAttribute('data-time'));
+        if (currentTime >= elementTime) {
+          activeElement = allTextElements[i];
+          break;
+        }
+      }
+      
+      // Update highlighting if active element changed
+      if (activeElement && activeElement !== currentActiveElement) {
+        if (currentActiveElement) {
+          currentActiveElement.classList.remove('active');
+        }
+        activeElement.classList.add('active');
+        currentActiveElement = activeElement;
+        
+        // Scroll to keep active element visible
+        activeElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }
+    });
+
+    // Clear active highlight when video is paused or seeking
+    video.addEventListener('pause', () => {
+      if (currentActiveElement) {
+        currentActiveElement.classList.remove('active');
+        currentActiveElement = null;
+      }
+    });
+
+    video.addEventListener('seeking', () => {
+      userIsScrolling = false; // Allow auto-scroll after manual seek
+    });
+
+    // Draggable separator functionality
+    const separator = document.getElementById('separator');
+    const videoContainer = document.getElementById('video-container');
+    const container = document.querySelector('.container');
+
+    let isDragging = false;
+
+    function startDrag(e) {
+      isDragging = true;
+      // Capture pointer for all pointer types (mouse, touch, pen)
+      if (e.pointerId !== undefined) {
+        separator.setPointerCapture(e.pointerId);
+      }
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    function onDrag(e) {
+      if (!isDragging) return;
+      
+      let clientY;
+      // Handle both pointer and touch events
+      if (e.clientY !== undefined) {
+        clientY = e.clientY;
+      } else if (e.touches && e.touches.length > 0) {
+        clientY = e.touches[0].clientY;
+      } else {
+        return;
+      }
+      
+      const containerTop = container.getBoundingClientRect().top;
+      let newHeight = clientY - containerTop;
+      const minHeight = 100;
+      const maxHeight = window.innerHeight - 100;
+      newHeight = Math.max(minHeight, Math.min(maxHeight, newHeight));
+      videoContainer.style.height = newHeight + 'px';
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    function endDrag(e) {
+      if (!isDragging) return;
+      isDragging = false;
+      if (e.pointerId !== undefined) {
+        separator.releasePointerCapture(e.pointerId);
+      }
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    // Use pointer events (handles mouse, touch, and pen)
+    separator.addEventListener('pointerdown', startDrag);
+    separator.addEventListener('pointermove', onDrag);
+    separator.addEventListener('pointerup', endDrag);
+    separator.addEventListener('pointercancel', endDrag);
+    
+    // Global handlers for when pointer moves outside separator
+    window.addEventListener('pointermove', onDrag);
+    window.addEventListener('pointerup', endDrag);
+
+        
+    // for timestamp clicks and touches
+    let touchStartY = 0;
+    let touchStartX = 0;
+    const scrollThreshold = 10; // pixels of movement to consider it a scroll
+    
+    function handleTouchStart(e) {
+        touchStartY = e.touches[0].clientY;
+        touchStartX = e.touches[0].clientX;
+    }
+    
+    function handleTouchEnd(e) {
+        const touchEndY = e.changedTouches[0].clientY;
+        const touchEndX = e.changedTouches[0].clientX;
+        const deltaY = Math.abs(touchEndY - touchStartY);
+        const deltaX = Math.abs(touchEndX - touchStartX);
+        
+        // Only trigger if it's a tap (minimal movement), not a scroll
+        if (deltaY < scrollThreshold && deltaX < scrollThreshold) {
+            e.preventDefault();
+            const time = parseFloat(this.getAttribute('data-time'));
+            const video = document.getElementById('zoomVideo');
+            video.currentTime = time;
+            
+            // play() returns a promise, handle it properly for iOS
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(error => {
+                // Auto-play was prevented, user needs to click play button
+                console.log('Playback prevented:', error);
+              });
+            }
+        }
+    }
+    
+    function handleClick(e) {
+        const time = parseFloat(this.getAttribute('data-time'));
+        const video = document.getElementById('zoomVideo');
+        video.currentTime = time;
+        
+        // play() returns a promise, handle it properly for iOS
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            // Auto-play was prevented
+            console.log('Playback prevented:', error);
+          });
+        }
+    }
+
+    document.querySelectorAll('.timestamp, .speakername, .speakertext').forEach(function(element) {
+        element.addEventListener('click', handleClick);
+        element.addEventListener('touchstart', handleTouchStart, { passive: true });
+        element.addEventListener('touchend', handleTouchEnd);
+    });
+
+  </script>
+</body>
+</html>

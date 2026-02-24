@@ -55,6 +55,11 @@
 #   "/mnt/d/Dropbox/McCallieFamilyStories/Zoomfest-03Mar2025/Zoomfest-Genealogy-23Mar2025-corrected-transcript.vtt" \
 #   zoomfest-geneology-23Mar2025.html
 
+# ❯ python create_static_webpage.py --video_url \
+# > https://assets.mccalliefamilystories.com/zoomvideos/Zoomfest-Humhub-22Feb2026.mp4 \   
+# > "/mnt/d/Dropbox/McCallieFamilyStories/Zoomfest-22Feb2026/GMT20260222-190650_Recording.transcript-corrected.vtt" \
+# > Zoomfest-Humhub-22Feb2026.html
+
 
 import re
 import argparse

@@ -60,6 +60,10 @@
 # > "/mnt/d/Dropbox/McCallieFamilyStories/Zoomfest-22Feb2026/GMT20260222-190650_Recording.transcript-corrected.vtt" \
 # > Zoomfest-Humhub-22Feb2026.html
 
+# python create_static_webpage.py --video_url https://assets.mccalliefamilystories.com/zoomvideos/Zoomfest-Photographs-22Mar2026.mp4 \
+# > "/mnt/d/Dropbox/McCallieFamilyStories/Zoomfest-22Mar2026/GMT20260322-182030_Recording.transcript-corrected.vtt" \
+# >  Zoomfest-Photographs-22Mar2026.html
+
 
 import re
 import argparse
@@ -101,6 +105,7 @@ def fix_spelling(text):
       ("Alan", "Allen"),
       ("Presley", "Pressly"),
       ("Teresa", "Tresa"),
+      ("home hub", "Humhub"),
     ]
     for wrong, right in corrections:
         text = text.replace(wrong, right)
@@ -822,6 +827,8 @@ def main():
                         default="https://your-bucket.mp4",
                         help="URL of the video file")
     args = parser.parse_args()
+
+    print(f"Args: {args}  ")
 
     cues = parse_vtt_file(args.vtt_file)
     if not cues:
